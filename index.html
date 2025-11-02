@@ -1204,7 +1204,7 @@
 
                 <h3 style="margin-top: 2rem; color:var(--accent-gold);">Critical Open Work Orders</h3>
                 <div class="search-filter">
-                    <input type="text" id="dashboard-search" placeholder="Search work orders..." oninput="debouncedFilterTable('dashboard-wo-table', this.value)">
+                    <input type="text" id="dashboard-search" placeholder="Search work orders..." oninput="debouncedFilterTable('dashboard-wo-table', this.value, '')">
                     <select id="dashboard-priority-filter" onchange="filterTable('dashboard-wo-table', '', this.value)">
                         <option value="">All Priorities</option>
                         <option value="High">High</option>
@@ -1265,7 +1265,7 @@
 
                 <h3 style="margin-top: 2rem; color:var(--accent-gold);">Existing Work Orders</h3>
                 <div class="search-filter">
-                    <input type="text" id="wo-search" placeholder="Search work orders..." oninput="debouncedFilterTable('wo-table', this.value)">
+                    <input type="text" id="wo-search" placeholder="Search work orders..." oninput="debouncedFilterTable('wo-table', this.value, '')">
                     <select id="wo-status-filter" onchange="filterTable('wo-table', '', this.value)">
                         <option value="">All Statuses</option>
                         <option value="Open">Open</option>
@@ -1321,7 +1321,7 @@
 
                 <h3 style="margin-top: 2rem; color:var(--accent-gold);">Registered Assets</h3>
                 <div class="search-filter">
-                    <input type="text" id="asset-search" placeholder="Search assets..." oninput="debouncedFilterTable('asset-table', this.value)">
+                    <input type="text" id="asset-search" placeholder="Search assets..." oninput="debouncedFilterTable('asset-table', this.value, '')">
                     <select id="asset-dept-filter" onchange="filterTable('asset-table', '', this.value)">
                         <option value="">All Departments</option>
                         <option value="children's home">Children's Home</option>
@@ -1519,7 +1519,7 @@
         let dashboardChart = null;
         let confirmCallback = null;
 
-        // Performance: Debounce function for search inputs
+        // Performance Optimization: Debounce function for search inputs
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
@@ -1531,7 +1531,103 @@
                 timeout = setTimeout(later, wait);
             };
         }
-        const debouncedFilterTable = debounce((tableId, searchTerm) => filterTable(tableId, searchTerm), 300);
+        const debouncedFilterTable = debounce((tableId, searchTerm, filterValue) => filterTable(tableId, searchTerm, filterValue), 300);
+
+        // Enhanced Asset Parsing Algorithm
+        function parseTextForAssets(text) {
+            // Preprocess text for better matching
+            text = text.toLowerCase()
+                .replace(/\s+/g, ' ') // Normalize spaces
+                .replace(/[^\w\s\-\/:.,()]/g, ' ') // Remove special chars except common ones
+                .trim();
+
+            const lines = text.split('\n').filter(line => line.trim().length > 5); // Filter short lines
+
+            const extracted = [];
+            const assetKeywords = ['asset', 'equipment', 'device', 'machine', 'item', 'tool', 'fixture', 'appliance', 'unit'];
+            const serialKeywords = ['serial', 'sn', 'id', 'number'];
+            const locationKeywords = ['location', 'room', 'area', 'site', 'place', 'in', 'at'];
+            const deptKeywords = ['department', 'dept', 'division', 'unit', 'section'];
+
+            lines.forEach((line, index) => {
+                // Skip if no asset keyword
+                if (!assetKeywords.some(kw => line.includes(kw))) return;
+
+                // Enhanced extraction using multiple strategies
+                let name = '', serial = '', location = '', department = 'general';
+
+                // Strategy 1: Colon-based key-value pairs
+                const colonMatches = line.match(/(\w+(?:\s+\w+)*?)\s*:\s*([^\s,.:]+(?:\s+[^\s,.:]+)*?)(?:\s*,\s*|$)/g);
+                if (colonMatches) {
+                    colonMatches.forEach(match => {
+                        const [key, value] = match.split(':').map(s => s.trim());
+                        if (assetKeywords.some(kw => key.includes(kw))) name = value;
+                        if (serialKeywords.some(kw => key.includes(kw))) serial = value;
+                        if (locationKeywords.some(kw => key.includes(kw))) location = value;
+                        if (deptKeywords.some(kw => key.includes(kw))) department = value;
+                    });
+                }
+
+                // Strategy 2: Positional patterns (e.g., Name - Serial - Location)
+                const dashMatch = line.match(/([a-zA-Z0-9\s\/\-\_]+?)\s*(?:-|\|)\s*([a-zA-Z0-9\-]+?)\s*(?:-|\|)\s*([a-zA-Z0-9\s\/\-\_]+?)(?:\s*(?:dept|for)\s*([a-zA-Z0-9\s]+?))?/i);
+                if (dashMatch) {
+                    name = dashMatch[1].trim();
+                    serial = dashMatch[2].trim();
+                    location = dashMatch[3].trim();
+                    if (dashMatch[4]) department = dashMatch[4].trim();
+                }
+
+                // Strategy 3: Keyword proximity (simple scoring)
+                const words = line.split(' ');
+                let score = 0;
+                let potentialName = '';
+                let potentialSerial = '';
+                let potentialLocation = '';
+
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i].trim();
+                    if (assetKeywords.some(kw => word.includes(kw))) {
+                        potentialName = words.slice(i + 1, i + 4).join(' ').trim(); // Next 3 words as name
+                        score += 10;
+                    }
+                    if (serialKeywords.some(kw => word.includes(kw)) && i + 1 < words.length) {
+                        potentialSerial = words[i + 1].trim();
+                        score += 5;
+                    }
+                    if (locationKeywords.some(kw => word.includes(kw)) && i + 1 < words.length) {
+                        potentialLocation = words.slice(i + 1, i + 3).join(' ').trim();
+                        score += 5;
+                    }
+                }
+
+                // Use scored extraction if higher confidence
+                if (score > 10 && potentialName.length > 3) {
+                    name = potentialName || name;
+                    serial = potentialSerial || serial;
+                    location = potentialLocation || location;
+                }
+
+                // Fallback: Extract first noun phrase after asset keyword
+                if (!name) {
+                    const fallback = line.match(new RegExp(`${assetKeywords.join('|')}\\s+([a-zA-Z0-9\\s\/\\-\\(\\)]{5,50})(?=\\s*(?:${serialKeywords.join('|')}|${locationKeywords.join('|')}|$))`, 'i'));
+                    name = fallback ? fallback[1].trim() : '';
+                }
+
+                // Validate and add if sufficient data
+                if (name && (location || department !== 'general')) {
+                    extracted.push({
+                        name: name.charAt(0).toUpperCase() + name.slice(1), // Capitalize
+                        serial: serial || '',
+                        location: location || '',
+                        department: department
+                    });
+                }
+            });
+
+            // Deduplicate using a Set with normalized keys
+            const unique = [...new Map(extracted.map(item => [ `${item.name.toLowerCase()}|${item.location.toLowerCase()}` , item ])).values()];
+            return unique.slice(0, 50); // Limit to prevent overload
+        }
 
         // Initialize App
         function initApp() {
@@ -1606,24 +1702,26 @@
             if (saved) data = JSON.parse(saved);
         }
 
-        // Optimized Table Filtering with debounce support
+        // Table Filtering (optimized with requestAnimationFrame for UI updates)
         function filterTable(tableId, searchTerm = '', filterValue = '') {
-            const table = document.getElementById(tableId);
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                const cells = row.querySelectorAll('td');
-                let match = true;
-                if (searchTerm) match = match && text.includes(searchTerm.toLowerCase());
-                if (filterValue) {
-                    const filterCell = tableId.includes('wo') ? (tableId.includes('priority') ? 4 : 5) : // Adjust indices based on table
-                                      tableId.includes('asset') ? 1 : // Dept for assets
-                                      tableId.includes('pm') ? 6 : // Status for pm
-                                      tableId.includes('inv') ? 5 : // Status for inv
-                                      tableId.includes('user') ? 1 : 0; // Role for users
-                    match = match && (filterValue === '' || cells[filterCell].textContent === filterValue);
-                }
-                row.style.display = match ? '' : 'none';
+            requestAnimationFrame(() => {
+                const table = document.getElementById(tableId);
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    const cells = row.querySelectorAll('td');
+                    let match = true;
+                    if (searchTerm) match = match && text.includes(searchTerm.toLowerCase());
+                    if (filterValue) {
+                        const filterCell = tableId.includes('wo') ? (tableId.includes('priority') ? 4 : 5) : // Adjust indices based on table
+                                          tableId.includes('asset') ? 1 : // Dept for assets
+                                          tableId.includes('pm') ? 6 : // Status for pm
+                                          tableId.includes('inv') ? 5 : // Status for inv
+                                          tableId.includes('user') ? 1 : 0; // Role for users
+                        match = match && (filterValue === '' || cells[filterCell].textContent === filterValue);
+                    }
+                    row.style.display = match ? '' : 'none';
+                });
             });
         }
 
@@ -1741,12 +1839,11 @@
             }
         }
 
-        // Optimized loadWoTable with DocumentFragment
         function loadWoTable() {
             const tbody = document.querySelector('#wo-table tbody');
-            const fragment = document.createDocumentFragment();
+            tbody.innerHTML = '';
             data.workOrders.forEach(wo => {
-                const row = document.createElement('tr');
+                const row = tbody.insertRow();
                 const priorityColor = wo.priority === 'High' ? '#dc3545' : wo.priority === 'Medium' ? '#ffc107' : '#28a745';
                 const statusColor = wo.status === 'Open' ? '#ffc107' : wo.status === 'In Progress' ? '#17a2b8' : wo.status === 'Completed' ? '#28a745' : '#6c757d';
                 row.innerHTML = `
@@ -1762,10 +1859,7 @@
                         ${wo.status !== 'Closed' ? `<button class="action-btn close" onclick="updateWoStatus(${wo.id}, 'Closed')">Close</button>` : ''}
                     </td>
                 `;
-                fragment.appendChild(row);
             });
-            tbody.innerHTML = '';
-            tbody.appendChild(fragment);
         }
 
         // Assets (enhanced with drag-drop and better preview)
@@ -1949,7 +2043,7 @@
             }
         }
 
-        // Enhanced AI Extraction with better algorithm
+        // Enhanced AI Extraction using improved parseTextForAssets
         function extractAssetsWithAI() {
             showNotification('Extracting assets with enhanced AI parsing...', 'info');
             const progress = document.getElementById('ai-progress');
@@ -1999,94 +2093,27 @@
                     clearInterval(interval);
                     fill.style.width = '100%';
                     setTimeout(() => {
-                        // Enhanced parsing algorithm: Line-by-line processing, better regex, keyword scoring for confidence
-                        const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                        const enhancedPatterns = [
-                            // Pattern 1: Structured asset lists
-                            { regex: /(?:asset|equip|item|device|machine)[\s:,\-]*(\w+(?:\s+\w+){1,5})(?:\s*(?:sn|serial|id)[\s:,\-]*([A-Z0-9\-]+))?(?:\s*(?:loc|room|area|site)[\s:,\-]*([a-zA-Z0-9\s\/\-\_]+))?(?:\s*(?:dept|div|unit)[\s:,\-]*([a-zA-Z\s]+))?/gi, fields: ['name', 'serial', 'location', 'department'], score: 1.0 },
-                            // Pattern 2: Inventory-style
-                            { regex: /([A-Z][a-zA-Z\s]+(?:\s[A-Z]{2,4}\d+)?)\s+(?:#|no|id)[\s:,\-]?\s*([A-Z0-9\-]+?)\s+(?:in|at|loc)[\s:,\-]?\s*([a-zA-Z0-9\s\/\-\_]+?)(?:\s+(?:for|dept)[\s:,\-]?\s*([a-zA-Z\s]+?))?/gi, fields: ['name', 'serial', 'location', 'department'], score: 0.9 },
-                            // Pattern 3: Descriptive sentences
-                            { regex: /(?:the\s+)?(?:[Tt]he\s+)?(?:asset|equipment|fixture|appliance|tool)\s+(?:is|named|called|labelled)\s+([a-zA-Z0-9\s\/\-\_]+?)(?:\s+with\s+(?:sn|serial)\s+([A-Z0-9\-]+?))?(?:\s+(?:located|in|at)\s+([a-zA-Z0-9\s\/\-\_]+?))?(?:\s+(?:for|in\s+(?:the\s+)?([a-zA-Z\s]+?)))?/gi, fields: ['name', 'serial', 'location', 'department'], score: 0.8 },
-                            // Pattern 4: Table-like rows (split by tabs/spaces)
-                            { regex: /^(\w+(?:\s+\w+){0,4})\s+([A-Z0-9\-]+?)\s+([a-zA-Z0-9\s\/\-\_]+?)\s+([a-zA-Z\s]+?)?$/gm, fields: ['name', 'serial', 'location', 'department'], score: 0.95 },
-                            // Pattern 5: Equipment lists with categories
-                            { regex: /category[:\s\-]*([a-zA-Z\s]+?)\s*(?:-|:)\s*([a-zA-Z0-9\s\/\-\_]+?)(?:\s*(?:sn|id)[:\s\-]*([A-Z0-9\-]+?))?(?:\s*(?:room|loc)[:\s\-]*([a-zA-Z0-9\s\/\-\_]+?))?/gi, fields: ['department', 'name', 'serial', 'location'], score: 0.85 }
-                        ];
-
-                        let extracted = [];
-                        lines.forEach(line => {
-                            const lineLower = line.toLowerCase();
-                            enhancedPatterns.forEach(pattern => {
-                                let match;
-                                while ((match = pattern.regex.exec(lineLower)) !== null) {
-                                    let item = {};
-                                    pattern.fields.forEach((field, idx) => {
-                                        if (match[idx + 1]) item[field] = match[idx + 1].trim();
-                                    });
-                                    if (!item.name || item.name.length < 2) return; // Skip invalid
-                                    item.department = item.department || 'general';
-                                    item.location = item.location || 'Unknown';
-                                    item.serial = item.serial || 'N/A';
-                                    item.confidence = pattern.score;
-                                    // Deduplicate with fuzzy matching (simple Levenshtein-like)
-                                    const existingIdx = extracted.findIndex(e => 
-                                        Math.abs(e.name.length - item.name.length) < 3 && 
-                                        e.name.toLowerCase().includes(item.name.toLowerCase().substring(0, Math.min(5, item.name.length))) &&
-                                        e.location.toLowerCase() === item.location.toLowerCase()
-                                    );
-                                    if (existingIdx === -1 || item.confidence > extracted[existingIdx].confidence) {
-                                        if (existingIdx !== -1) extracted[existingIdx] = item;
-                                        else extracted.push(item);
-                                    }
-                                }
-                            });
-                        });
-
-                        // Auto-add high-confidence items directly (threshold 0.9), low-confidence to modal
-                        const highConf = extracted.filter(e => e.confidence >= 0.9);
-                        const lowConf = extracted.filter(e => e.confidence < 0.9);
-                        if (highConf.length > 0) {
-                            highConf.forEach(a => {
-                                if (!data.assets.find(existing => existing.name.toLowerCase() === a.name.toLowerCase() && existing.location.toLowerCase() === a.location.toLowerCase())) {
-                                    a.id = data.nextIds.asset++;
-                                    a.createdBy = currentUser.username;
-                                    a.createdAt = new Date().toISOString();
-                                    data.assets.push(a);
-                                }
-                            });
-                            saveData();
-                            loadAssetTable();
-                            populateAssetSelects();
-                            updateDashboard();
-                            updateReports();
-                            showNotification(`${highConf.length} high-confidence assets auto-added!`, 'success');
-                        }
-                        aiExtractedAssets = lowConf.slice(0, 20);
-                        if (aiExtractedAssets.length > 0) {
-                            document.getElementById('ai-asset-list').innerHTML = aiExtractedAssets.map((a, i) => `
-                                <div class="ai-asset-item">
-                                    <label>Name:</label><input type="text" value="${a.name}" onchange="aiExtractedAssets[${i}].name = this.value">
-                                    <label>Serial:</label><input type="text" value="${a.serial || ''}" onchange="aiExtractedAssets[${i}].serial = this.value">
-                                    <label>Location:</label><input type="text" value="${a.location}" onchange="aiExtractedAssets[${i}].location = this.value">
-                                    <label>Department:</label><select onchange="aiExtractedAssets[${i}].department = this.value">
-                                        <option value="general" ${a.department === 'general' ? 'selected' : ''}>General</option>
-                                        <option value="children's home" ${a.department === "children's home" ? 'selected' : ''}>Children's Home</option>
-                                        <option value="old age" ${a.department === 'old age' ? 'selected' : ''}>Old Age Home</option>
-                                        <option value="mental home" ${a.department === 'mental home' ? 'selected' : ''}>Mental Home</option>
-                                        <option value="hospice" ${a.department === 'hospice' ? 'selected' : ''}>Hospice</option>
-                                        <option value="bci school" ${a.department === 'bci school' ? 'selected' : ''}>BCI School</option>
-                                        <option value="cfm church" ${a.department === 'cfm church' ? 'selected' : ''}>CFM Church</option>
-                                    </select>
-                                    <small>Confidence: ${(a.confidence * 100).toFixed(0)}%</small>
-                                </div>
-                            `).join('');
-                            document.getElementById('ai-asset-modal').style.display = 'flex';
-                            showNotification(`${lowConf.length} assets for review. High-confidence ones auto-added.`, 'info');
-                        } else {
-                            showNotification('Extraction complete. All assets auto-added!', 'success');
-                        }
+                        aiExtractedAssets = parseTextForAssets(text);
+                        aiExtractedAssets = aiExtractedAssets.length > 0 ? aiExtractedAssets : [{ name: 'AI Parsed Asset', department: 'general', location: 'Unknown Location', serial: 'N/A' }];
+                        document.getElementById('ai-asset-list').innerHTML = aiExtractedAssets.map((a, i) => `
+                            <div class="ai-asset-item">
+                                <label>Name:</label><input type="text" value="${a.name}" onchange="aiExtractedAssets[${i}].name = this.value">
+                                <label>Serial:</label><input type="text" value="${a.serial || ''}" onchange="aiExtractedAssets[${i}].serial = this.value">
+                                <label>Location:</label><input type="text" value="${a.location}" onchange="aiExtractedAssets[${i}].location = this.value">
+                                <label>Department:</label><select onchange="aiExtractedAssets[${i}].department = this.value">
+                                    <option value="general" ${a.department === 'general' ? 'selected' : ''}>General</option>
+                                    <option value="children's home" ${a.department === "children's home" ? 'selected' : ''}>Children's Home</option>
+                                    <option value="old age" ${a.department === 'old age' ? 'selected' : ''}>Old Age Home</option>
+                                    <option value="mental home" ${a.department === 'mental home' ? 'selected' : ''}>Mental Home</option>
+                                    <option value="hospice" ${a.department === 'hospice' ? 'selected' : ''}>Hospice</option>
+                                    <option value="bci school" ${a.department === 'bci school' ? 'selected' : ''}>BCI School</option>
+                                    <option value="cfm church" ${a.department === 'cfm church' ? 'selected' : ''}>CFM Church</option>
+                                </select>
+                            </div>
+                        `).join('');
+                        document.getElementById('ai-asset-modal').style.display = 'flex';
                         progress.style.display = 'none';
+                        showNotification('Extraction complete. Review and confirm.', 'success');
                     }, 500);
                 }).catch(err => {
                     clearInterval(interval);
@@ -2200,7 +2227,7 @@
             document.getElementById('ai-wo-progress').style.display = 'none';
         }
 
-        // Enhanced Bulk Imports with better column detection for Excel
+        // Bulk Imports (enhanced with new parsing algorithm for Word, auto-add)
         function importAssetsFromExcel(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -2209,43 +2236,29 @@
                 const data = new Uint8Array(ev.target.result);
                 const wb = XLSX.read(data, { type: 'array' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                if (json.length === 0) {
-                    showNotification('Empty Excel file.', 'error');
-                    return;
-                }
-                // Detect headers dynamically
-                const headers = json[0].map(h => h.toString().toLowerCase().trim());
-                const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('asset') || h.includes('equip'));
-                const deptIdx = headers.findIndex(h => h.includes('dept') || h.includes('department') || h.includes('div'));
-                const serialIdx = headers.findIndex(h => h.includes('serial') || h.includes('sn') || h.includes('id'));
-                const locIdx = headers.findIndex(h => h.includes('loc') || h.includes('location') || h.includes('room'));
+                const json = XLSX.utils.sheet_to_json(ws);
                 let imported = 0;
-                for (let i = 1; i < json.length; i++) {
-                    const row = json[i];
-                    if (nameIdx !== -1 && row[nameIdx] && locIdx !== -1 && row[locIdx]) {
+                json.forEach(row => {
+                    if (row['Name'] && row['Department'] && row['Location']) {
                         const asset = {
                             id: data.nextIds.asset++,
-                            department: (deptIdx !== -1 ? row[deptIdx] : 'general').toString().trim(),
-                            name: row[nameIdx].toString().trim(),
-                            serial: serialIdx !== -1 ? row[serialIdx].toString().trim() : '',
-                            location: row[locIdx].toString().trim(),
+                            department: row['Department'],
+                            name: row['Name'],
+                            serial: row['Serial'] || '',
+                            location: row['Location'],
                             createdBy: currentUser.username,
                             createdAt: new Date().toISOString()
                         };
-                        // Deduplicate
-                        if (!data.assets.find(existing => existing.name.toLowerCase() === asset.name.toLowerCase() && existing.location.toLowerCase() === asset.location.toLowerCase())) {
-                            data.assets.push(asset);
-                            imported++;
-                        }
+                        data.assets.push(asset);
+                        imported++;
                     }
-                }
+                });
                 saveData();
                 loadAssetTable();
                 populateAssetSelects();
                 updateDashboard();
                 updateReports();
-                showNotification(`${imported} assets imported from Excel! (Detected columns: ${headers.slice(0,4).join(', ')}...)`, 'success');
+                showNotification(`${imported} assets imported from Excel!`, 'success');
                 e.target.value = '';
             };
             reader.readAsArrayBuffer(file);
@@ -2259,44 +2272,15 @@
                 const buffer = ev.target.result;
                 mammoth.extractRawText({ arrayBuffer: buffer }).then(result => {
                     const text = result.value;
-                    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                    // Use enhanced patterns from extractAssetsWithAI
-                    const enhancedPatterns = [
-                        { regex: /(?:asset|equip|item|device|machine)[\s:,\-]*(\w+(?:\s+\w+){1,5})(?:\s*(?:sn|serial|id)[\s:,\-]*([A-Z0-9\-]+))?(?:\s*(?:loc|room|area|site)[\s:,\-]*([a-zA-Z0-9\s\/\-\_]+))?(?:\s*(?:dept|div|unit)[\s:,\-]*([a-zA-Z\s]+))?/gi, fields: ['name', 'serial', 'location', 'department'], score: 1.0 },
-                        // ... (include other patterns as above)
-                    ];
-                    let extracted = [];
-                    lines.forEach(line => {
-                        const lineLower = line.toLowerCase();
-                        enhancedPatterns.forEach(pattern => {
-                            let match;
-                            while ((match = pattern.regex.exec(lineLower)) !== null) {
-                                let item = {};
-                                pattern.fields.forEach((field, idx) => {
-                                    if (match[idx + 1]) item[field] = match[idx + 1].trim();
-                                });
-                                if (!item.name || item.name.length < 2) return;
-                                item.department = item.department || 'general';
-                                item.location = item.location || 'Unknown';
-                                item.serial = item.serial || 'N/A';
-                                item.confidence = pattern.score;
-                                // Deduplicate
-                                const existingIdx = extracted.findIndex(e => 
-                                    Math.abs(e.name.length - item.name.length) < 3 && 
-                                    e.name.toLowerCase().includes(item.name.toLowerCase().substring(0, Math.min(5, item.name.length)))
-                                );
-                                if (existingIdx === -1) {
-                                    extracted.push(item);
-                                } else if (item.confidence > extracted[existingIdx].confidence) {
-                                    extracted[existingIdx] = item;
-                                }
-                            }
-                        });
-                    });
-                    extracted = extracted.slice(0, 50); // Limit
+                    const extracted = parseTextForAssets(text); // Use enhanced parser
                     let imported = 0;
                     extracted.forEach(a => {
-                        if (!data.assets.find(existing => existing.name.toLowerCase() === a.name.toLowerCase())) {
+                        // Auto-add if valid and not duplicate (fuzzy match for name/location)
+                        const existing = data.assets.find(ex => 
+                            ex.name.toLowerCase().includes(a.name.toLowerCase()) || 
+                            a.name.toLowerCase().includes(ex.name.toLowerCase())
+                        );
+                        if (!existing && a.name && a.location) {
                             a.id = data.nextIds.asset++;
                             a.createdBy = currentUser.username;
                             a.createdAt = new Date().toISOString();
@@ -2309,7 +2293,7 @@
                     populateAssetSelects();
                     updateDashboard();
                     updateReports();
-                    showNotification(`${imported} assets imported from Word! (Processed ${lines.length} lines)`, 'success');
+                    showNotification(`${imported} assets automatically imported from Word using enhanced parsing!`, 'success');
                     e.target.value = '';
                 }).catch(err => {
                     showNotification('Error parsing Word: ' + err.message, 'error');
@@ -2367,9 +2351,9 @@
             });
 
             const tbody = document.querySelector('#dashboard-wo-table tbody');
-            const fragment = document.createDocumentFragment();
+            tbody.innerHTML = '';
             data.workOrders.filter(w => w.status === 'Open' && w.priority === 'High').slice(0, 5).forEach(wo => {
-                const row = document.createElement('tr');
+                const row = tbody.insertRow();
                 row.innerHTML = `
                     <td>${wo.id}</td>
                     <td>${wo.department}</td>
@@ -2378,10 +2362,7 @@
                     <td><strong style="color: #dc3545;">${wo.priority}</strong></td>
                     <td><strong style="color: #ffc107;">${wo.status}</strong></td>
                 `;
-                fragment.appendChild(row);
             });
-            tbody.innerHTML = '';
-            tbody.appendChild(fragment);
         }
 
         // Reports with PDF Export
