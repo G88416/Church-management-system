@@ -212,8 +212,10 @@
             if (confirm('⚠️ Are you sure you want to clear ALL data? This action cannot be undone!')) {
                 if (confirm('This will delete all members, visitors, events, and other records. Continue?')) {
                     localStorage.clear();
-                    alert('All data cleared successfully! Page will reload.');
-                    location.reload();
+                    setTimeout(() => {
+                        alert('All data cleared successfully! Page will reload.');
+                        location.reload();
+                    }, 100);
                 }
             }
         });

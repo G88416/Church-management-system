@@ -142,8 +142,27 @@
         
         document.getElementById('export-members').addEventListener('click', () => {
             loadFromFirebase(COLLECTION, (data) => {
+                // Escape CSV values properly
+                const escapeCSV = (value) => {
+                    if (value == null) return '';
+                    const str = String(value);
+                    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                        return `"${str.replace(/"/g, '""')}"`;
+                    }
+                    return str;
+                };
+                
                 const csv = 'Name,Surname,ID,Gender,Age,Cell,Email,Branch\n' + 
-                    data.map(m => `${m.name},${m.surname},${m.id},${m.gender},${m.age},${m.cell},${m.email},${m.branch}`).join('\n');
+                    data.map(m => [
+                        escapeCSV(m.name),
+                        escapeCSV(m.surname),
+                        escapeCSV(m.id),
+                        escapeCSV(m.gender),
+                        escapeCSV(m.age),
+                        escapeCSV(m.cell),
+                        escapeCSV(m.email),
+                        escapeCSV(m.branch)
+                    ].join(',')).join('\n');
                 const blob = new Blob([csv], {type: 'text/csv'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

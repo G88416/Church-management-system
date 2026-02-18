@@ -12,13 +12,17 @@ const firebaseConfig = {
 // Initialize Firebase (will be used in individual pages)
 let db = null;
 let auth = null;
+let firebaseInitialized = false;
 
 function initializeFirebase() {
-    if (typeof firebase !== 'undefined') {
+    if (typeof firebase !== 'undefined' && !firebaseInitialized) {
         firebase.initializeApp(firebaseConfig);
         db = firebase.firestore();
         auth = firebase.auth();
+        firebaseInitialized = true;
         console.log('Firebase initialized successfully');
+    } else if (firebaseInitialized) {
+        console.log('Firebase already initialized');
     } else {
         console.warn('Firebase SDK not loaded. Using localStorage fallback.');
     }
@@ -43,26 +47,37 @@ function saveToFirebase(collection, data) {
 
 function loadFromFirebase(collection, callback) {
     if (db) {
-        db.collection(collection).orderBy('createdAt', 'desc').onSnapshot((snapshot) => {
+        db.collection(collection).onSnapshot((snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Sort by createdAt if available, otherwise by document ID
+            data.sort((a, b) => {
+                if (a.createdAt && b.createdAt) {
+                    return b.createdAt.seconds - a.createdAt.seconds;
+                }
+                return 0;
+            });
             callback(data);
         });
     } else {
         // Fallback to localStorage
         const key = `charity_${collection}`;
         const data = JSON.parse(localStorage.getItem(key)) || [];
-        callback(data);
+        // Add numeric IDs for localStorage items
+        const dataWithIds = data.map((item, index) => ({ ...item, id: index }));
+        callback(dataWithIds);
     }
 }
 
 function deleteFromFirebase(collection, id) {
-    if (db && id) {
+    if (db && id && typeof id === 'string' && !id.match(/^\d+$/)) {
+        // Firebase document ID (not a numeric index)
         return db.collection(collection).doc(id).delete();
     } else {
-        // Fallback to localStorage
+        // Fallback to localStorage or numeric ID
         const key = `charity_${collection}`;
         const data = JSON.parse(localStorage.getItem(key)) || [];
-        const filtered = data.filter((item, index) => index !== id);
+        const numericId = typeof id === 'number' ? id : parseInt(id);
+        const filtered = data.filter((item, index) => index !== numericId);
         localStorage.setItem(key, JSON.stringify(filtered));
         return Promise.resolve();
     }
