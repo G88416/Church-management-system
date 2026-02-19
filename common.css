@@ -18,10 +18,12 @@ header {
     padding: 20px 40px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     flex-wrap: wrap;
     gap: 10px;
+    position: relative;
+    text-align: center;
 }
 
 header h1 {
@@ -201,6 +203,8 @@ table button {
     cursor: pointer;
     border-radius: 5px;
     transition: background 0.3s;
+    position: absolute;
+    right: 40px;
 }
 
 .logout-btn:hover {
@@ -210,6 +214,12 @@ table button {
 @media (max-width: 768px) {
     header {
         padding: 15px 20px;
+        justify-content: space-between;
+        text-align: left;
+    }
+
+    .logout-btn {
+        position: static;
     }
 
     header h1 {
