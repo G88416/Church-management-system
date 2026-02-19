@@ -197,6 +197,19 @@
             loadFromFirebase('tithes',   (d) => { document.getElementById('stat-tithes').textContent = d.length; });
         });
 
+        // Refresh dashboard stats when another tab updates localStorage (localStorage fallback mode)
+        const statMap = {
+            'charity_members':  () => loadFromFirebase('members',  (d) => { document.getElementById('stat-members').textContent  = d.length; }),
+            'charity_visitors': () => loadFromFirebase('visitors', (d) => { document.getElementById('stat-visitors').textContent = d.length; }),
+            'charity_events':   () => loadFromFirebase('events',   (d) => { document.getElementById('stat-events').textContent   = d.length; }),
+            'charity_tithes':   () => loadFromFirebase('tithes',   (d) => { document.getElementById('stat-tithes').textContent   = d.length; })
+        };
+        window.addEventListener('storage', (e) => {
+            if (e.key && statMap[e.key]) {
+                statMap[e.key]();
+            }
+        });
+
         // Mobile nav toggle
         document.getElementById('nav-toggle').addEventListener('click', () => {
             document.getElementById('nav-menu').classList.toggle('open');
