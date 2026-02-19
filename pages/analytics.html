@@ -5,29 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analytics - Charity and Faith Mission</title>
     <link rel="stylesheet" href="../common.css">
+    <script src="../common.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="../firebase-config.js"></script>
     <script src="../auth.js"></script>
+    <style>
+        .analytics-section { margin-top: 30px; }
+        .analytics-section h3 { color: #2a5298; border-bottom: 2px solid #e1e8ed; padding-bottom: 8px; margin-bottom: 15px; }
+        .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+        .bar-row { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+        .bar-label { width: 140px; flex-shrink: 0; text-align: right; color: #495057; font-weight: 500; }
+        .bar-track { flex: 1; background: #e9ecef; border-radius: 6px; height: 24px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); transition: width 0.6s ease; }
+        .bar-value { width: 50px; text-align: left; font-weight: 600; color: #2a5298; }
+    </style>
 </head>
 <body>
     <header>
         <div>
             <h1>Charity and Faith Mission</h1>
-            <p class="subtitle">Analytics & Reports</p>
+            <p class="subtitle">Analytics &amp; Reports</p>
         </div>
         <button class="logout-btn" id="logout">Logout 🚪</button>
     </header>
     
     <nav>
-        <ul>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">☰</button>
+        <ul id="nav-menu">
             <li><a href="../index.html">Dashboard</a></li>
             <li><a href="members.html">Members</a></li>
             <li><a href="visitors.html">Visitors</a></li>
             <li><a href="analytics.html" class="active">Analytics</a></li>
             <li><a href="events.html">Events</a></li>
-            <li><a href="tithes.html">Tithes & Offerings</a></li>
+            <li><a href="tithes.html">Tithes &amp; Offerings</a></li>
             <li><a href="admin.html">Admin</a></li>
             <li><a href="attendance.html">Attendance</a></li>
             <li><a href="prayers.html">Prayer Requests</a></li>
@@ -39,45 +51,77 @@
     </nav>
     
     <main>
-        <h2>📊 Analytics & Reports</h2>
+        <h2>📊 Analytics &amp; Reports</h2>
         <p>View statistics and growth metrics for your organization.</p>
         
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>Total Members</h3>
-                <div class="value" id="total-members">0</div>
+                <div class="value" id="total-members">—</div>
             </div>
             <div class="stat-card" style="background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);">
                 <h3>Total Visitors</h3>
-                <div class="value" id="total-visitors">0</div>
+                <div class="value" id="total-visitors">—</div>
             </div>
             <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                <h3>Total Tithes & Offerings</h3>
-                <div class="value" id="total-tithes">$0</div>
+                <h3>Total Contributions</h3>
+                <div class="value" id="total-tithes">—</div>
             </div>
             <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                 <h3>Total Attendance</h3>
-                <div class="value" id="total-attendance">0</div>
+                <div class="value" id="total-attendance">—</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); color: #333;">
+                <h3>Upcoming Events</h3>
+                <div class="value" id="total-events">—</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <h3>Active Volunteers</h3>
+                <div class="value" id="total-volunteers">—</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #8e2de2 0%, #4a00e0 100%);">
+                <h3>Prayer Requests</h3>
+                <div class="value" id="total-prayers">—</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%);">
+                <h3>Sermons Archived</h3>
+                <div class="value" id="total-sermons">—</div>
             </div>
         </div>
-        
-        <h3>Growth Charts</h3>
-        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 300px; padding: 30px; background: #f8f9fa; border-radius: 10px; text-align: center;">
-                <h4>Members Growth</h4>
-                <p style="font-size: 48px; color: #667eea;">📈</p>
-                <p>Tracking member growth over time</p>
+
+        <div class="analytics-section">
+            <h3>Contribution Breakdown</h3>
+            <div class="bar-chart" id="contribution-chart">
+                <p style="color:#6c757d;">Loading contribution data…</p>
             </div>
-            <div style="flex: 1; min-width: 300px; padding: 30px; background: #f8f9fa; border-radius: 10px; text-align: center;">
-                <h4>Financial Trends</h4>
-                <p style="font-size: 48px; color: #56ab2f;">💹</p>
-                <p>Tithes and offerings analysis</p>
+        </div>
+
+        <div class="analytics-section">
+            <h3>Prayer Request Status</h3>
+            <div class="bar-chart" id="prayer-chart">
+                <p style="color:#6c757d;">Loading prayer data…</p>
             </div>
         </div>
     </main>
 
     <script>
         initializeFirebase();
+        setupLogout();
+        document.getElementById('nav-toggle').addEventListener('click', () => {
+            document.getElementById('nav-menu').classList.toggle('open');
+        });
+
+        function makeBar(label, value, max, color) {
+            const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+            return `
+                <div class="bar-row">
+                    <div class="bar-label">${escapeHtml(label)}</div>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width:${pct}%; background:${color};"></div>
+                    </div>
+                    <div class="bar-value">${value}</div>
+                </div>`;
+        }
         
         function updateAnalytics() {
             loadFromFirebase('members', (members) => {
@@ -90,28 +134,60 @@
             
             loadFromFirebase('tithes', (tithes) => {
                 const total = tithes.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-                document.getElementById('total-tithes').textContent = '$' + total.toFixed(2);
+                document.getElementById('total-tithes').textContent = 'R ' + total.toFixed(2);
+
+                // Breakdown chart
+                const types = {};
+                tithes.forEach(t => { types[t.type || 'Other'] = (types[t.type || 'Other'] || 0) + (parseFloat(t.amount) || 0); });
+                const maxVal = Math.max(...Object.values(types), 1);
+                const colors = ['linear-gradient(135deg,#667eea,#764ba2)', 'linear-gradient(135deg,#56ab2f,#a8e063)', 'linear-gradient(135deg,#f093fb,#f5576c)'];
+                const chartEl = document.getElementById('contribution-chart');
+                if (Object.keys(types).length === 0) {
+                    chartEl.innerHTML = '<p style="color:#6c757d;">No contribution data yet.</p>';
+                } else {
+                    chartEl.innerHTML = Object.entries(types).map(([k, v], i) =>
+                        makeBar(k, 'R ' + v.toFixed(2), maxVal, colors[i % colors.length])
+                    ).join('');
+                }
             });
             
             loadFromFirebase('attendance', (attendance) => {
                 const total = attendance.reduce((sum, a) => sum + (parseInt(a.total) || 0), 0);
                 document.getElementById('total-attendance').textContent = total;
             });
+
+            loadFromFirebase('events', (events) => {
+                document.getElementById('total-events').textContent = events.length;
+            });
+
+            loadFromFirebase('volunteers', (volunteers) => {
+                document.getElementById('total-volunteers').textContent = volunteers.length;
+            });
+
+            loadFromFirebase('prayers', (prayers) => {
+                document.getElementById('total-prayers').textContent = prayers.length;
+                // Status chart
+                const statuses = { Pending: 0, Praying: 0, Answered: 0 };
+                prayers.forEach(p => {
+                    if (statuses[p.status] !== undefined) statuses[p.status]++;
+                    else statuses['Pending']++;
+                });
+                const maxVal = Math.max(...Object.values(statuses), 1);
+                const chartEl = document.getElementById('prayer-chart');
+                const statusColors = {
+                    Pending:  'linear-gradient(135deg,#ffc107,#fd7e14)',
+                    Praying:  'linear-gradient(135deg,#4facfe,#2196f3)',
+                    Answered: 'linear-gradient(135deg,#28a745,#20c997)'
+                };
+                chartEl.innerHTML = Object.entries(statuses).map(([k, v]) =>
+                    makeBar(k, v, maxVal, statusColors[k])
+                ).join('');
+            });
+
+            loadFromFirebase('sermons', (sermons) => {
+                document.getElementById('total-sermons').textContent = sermons.length;
+            });
         }
-        
-        document.getElementById('logout').addEventListener('click', () => {
-            if (confirm('Are you sure you want to logout?')) {
-                if (auth) {
-                    auth.signOut().then(() => {
-                        localStorage.removeItem('userSession');
-                        window.location.href = '../login.html';
-                    });
-                } else {
-                    localStorage.removeItem('userSession');
-                    window.location.href = '../login.html';
-                }
-            }
-        });
         
         updateAnalytics();
     </script>

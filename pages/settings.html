@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - Charity and Faith Mission</title>
     <link rel="stylesheet" href="../common.css">
+    <script src="../common.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -21,13 +22,14 @@
     </header>
     
     <nav>
-        <ul>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">☰</button>
+        <ul id="nav-menu">
             <li><a href="../index.html">Dashboard</a></li>
             <li><a href="members.html">Members</a></li>
             <li><a href="visitors.html">Visitors</a></li>
             <li><a href="analytics.html">Analytics</a></li>
             <li><a href="events.html">Events</a></li>
-            <li><a href="tithes.html">Tithes & Offerings</a></li>
+            <li><a href="tithes.html">Tithes &amp; Offerings</a></li>
             <li><a href="admin.html">Admin</a></li>
             <li><a href="attendance.html">Attendance</a></li>
             <li><a href="prayers.html">Prayer Requests</a></li>
@@ -44,20 +46,24 @@
         
         <h3>Appearance</h3>
         <form id="appearance-form">
-            <label for="theme-select">Theme:</label>
+            <div class="form-row"><label for="theme-select">Theme</label>
             <select id="theme-select">
                 <option value="light">Light Theme</option>
                 <option value="dark">Dark Theme</option>
-            </select>
+            </select></div>
             <button type="button" id="save-theme" class="btn-secondary">Save Theme</button>
         </form>
         
         <h3>Organization Information</h3>
         <form id="org-form">
-            <input type="text" id="org-name" placeholder="Organization Name" value="Charity and Faith Mission">
-            <input type="email" id="org-email" placeholder="Contact Email">
-            <input type="tel" id="org-phone" placeholder="Contact Phone">
-            <input type="text" id="org-address" placeholder="Address">
+            <div class="form-row"><label for="org-name">Organization Name</label>
+            <input type="text" id="org-name" placeholder="Organization Name" value="Charity and Faith Mission"></div>
+            <div class="form-row"><label for="org-email">Contact Email</label>
+            <input type="email" id="org-email" placeholder="Contact Email"></div>
+            <div class="form-row"><label for="org-phone">Contact Phone</label>
+            <input type="tel" id="org-phone" placeholder="Contact Phone"></div>
+            <div class="form-row"><label for="org-address">Address</label>
+            <input type="text" id="org-address" placeholder="Address"></div>
             <button type="submit" class="btn-secondary">Save Organization Info</button>
         </form>
         
@@ -70,31 +76,37 @@
         
         <h3>Firebase Configuration</h3>
         <p style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-            <strong>Status:</strong> <span id="firebase-status">Checking...</span><br>
+            <strong>Status:</strong> <span id="firebase-status">Checking…</span><br>
             <small>To enable Firebase sync, update the configuration in firebase-config.js with your Firebase project credentials.</small>
         </p>
         
         <h3>About</h3>
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 20px;">
             <h4>Charity and Faith Mission Management System</h4>
-            <p>Version 2.0</p>
+            <p>Version 2.1</p>
             <p>A comprehensive management system designed for charitable organizations and faith-based communities.</p>
             <p><strong>Features:</strong></p>
-            <ul>
-                <li>Member & Visitor Management</li>
-                <li>Events & Attendance Tracking</li>
-                <li>Financial Contributions Management</li>
-                <li>Prayer Requests & Sermon Library</li>
-                <li>Volunteer Coordination</li>
-                <li>Analytics & Reports</li>
+            <ul style="margin-left:20px; margin-top:8px; line-height:1.8;">
+                <li>Member &amp; Visitor Management with search</li>
+                <li>Events &amp; Attendance Tracking with totals</li>
+                <li>Financial Contributions Management with breakdowns</li>
+                <li>Prayer Requests with status updates</li>
+                <li>Sermon Library &amp; Volunteer Coordination</li>
+                <li>Analytics &amp; Reports with bar charts</li>
                 <li>Media Creation Tools</li>
                 <li>Firebase Integration for Cloud Sync</li>
+                <li>Role-based access control</li>
+                <li>Toast notifications for all actions</li>
             </ul>
         </div>
     </main>
 
     <script>
         initializeFirebase();
+        setupLogout();
+        document.getElementById('nav-toggle').addEventListener('click', () => {
+            document.getElementById('nav-menu').classList.toggle('open');
+        });
         
         // Check Firebase status
         setTimeout(() => {
@@ -129,7 +141,7 @@
             const theme = document.getElementById('theme-select').value;
             localStorage.setItem('theme', theme);
             applyTheme(theme);
-            alert('Theme saved successfully!');
+            showToast('Theme saved successfully!', 'success');
         });
         
         // Organization info
@@ -142,33 +154,28 @@
                 address: document.getElementById('org-address').value
             };
             localStorage.setItem('org_info', JSON.stringify(orgData));
-            alert('Organization information saved!');
+            showToast('Organization information saved!', 'success');
         });
         
         // Load saved org info
         const savedOrgInfo = localStorage.getItem('org_info');
         if (savedOrgInfo) {
-            const orgData = JSON.parse(savedOrgInfo);
-            document.getElementById('org-name').value = orgData.name || 'Charity and Faith Mission';
-            document.getElementById('org-email').value = orgData.email || '';
-            document.getElementById('org-phone').value = orgData.phone || '';
-            document.getElementById('org-address').value = orgData.address || '';
+            try {
+                const orgData = JSON.parse(savedOrgInfo);
+                document.getElementById('org-name').value = orgData.name || 'Charity and Faith Mission';
+                document.getElementById('org-email').value = orgData.email || '';
+                document.getElementById('org-phone').value = orgData.phone || '';
+                document.getElementById('org-address').value = orgData.address || '';
+            } catch (e) { /* ignore */ }
         }
         
         // Backup data
         document.getElementById('backup-data').addEventListener('click', () => {
-            const allData = {
-                members: JSON.parse(localStorage.getItem('charity_members')) || [],
-                visitors: JSON.parse(localStorage.getItem('charity_visitors')) || [],
-                events: JSON.parse(localStorage.getItem('charity_events')) || [],
-                tithes: JSON.parse(localStorage.getItem('charity_tithes')) || [],
-                attendance: JSON.parse(localStorage.getItem('charity_attendance')) || [],
-                prayers: JSON.parse(localStorage.getItem('charity_prayers')) || [],
-                sermons: JSON.parse(localStorage.getItem('charity_sermons')) || [],
-                volunteers: JSON.parse(localStorage.getItem('charity_volunteers')) || [],
-                leaders: JSON.parse(localStorage.getItem('charity_leaders')) || [],
-                org_info: JSON.parse(localStorage.getItem('org_info')) || {}
-            };
+            const collections = ['members', 'visitors', 'events', 'tithes', 'attendance', 'prayers', 'sermons', 'volunteers', 'leaders'];
+            const allData = { org_info: JSON.parse(localStorage.getItem('org_info')) || {} };
+            collections.forEach(c => {
+                allData[c] = JSON.parse(localStorage.getItem(`charity_${c}`)) || [];
+            });
             
             const blob = new Blob([JSON.stringify(allData, null, 2)], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
@@ -176,7 +183,7 @@
             a.href = url;
             a.download = `charity-faith-mission-backup-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
-            alert('Data backup downloaded successfully!');
+            showToast('Data backup downloaded successfully!', 'success');
         });
         
         // Restore data
@@ -197,10 +204,10 @@
                                 localStorage.setItem(`charity_${key}`, JSON.stringify(data[key]));
                             }
                         });
-                        alert('Data restored successfully! Page will reload.');
-                        location.reload();
+                        showToast('Data restored successfully! Reloading…', 'success');
+                        setTimeout(() => location.reload(), 1500);
                     } catch (error) {
-                        alert('Error restoring data. Please check the file format.');
+                        showToast('Error restoring data. Please check the file format.', 'error');
                     }
                 };
                 reader.readAsText(file);
@@ -208,29 +215,20 @@
             input.click();
         });
         
-        // Clear all data
+        // Clear all data (fixed to remove all charity_ keys)
         document.getElementById('clear-data').addEventListener('click', () => {
-            if (confirm('⚠️ Are you sure you want to clear ALL data? This action cannot be undone!')) {
-                if (confirm('This will delete all members, visitors, events, and other records. Continue?')) {
-                    localStorage.removeItem('userSession');
-                    setTimeout(() => {
-                        alert('All data cleared successfully! Page will reload.');
-                        location.reload();
-                    }, 100);
-                }
-            }
-        });
-        
-        document.getElementById('logout').addEventListener('click', () => {
-            if (confirm('Are you sure you want to logout?')) {
-                if (auth) {
-                    auth.signOut().then(() => {
-                        localStorage.removeItem('userSession');
-                        window.location.href = '../login.html';
-                    });
-                } else {
-                    localStorage.removeItem('userSession');
-                    window.location.href = '../login.html';
+            if (confirm('⚠️ Are you sure you want to clear ALL local data? This action cannot be undone!')) {
+                if (confirm('This will delete all locally stored members, visitors, events, and other records. Continue?')) {
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.startsWith('charity_') || key === 'org_info' || key === 'theme' || key === 'userSession')) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    keysToRemove.forEach(k => localStorage.removeItem(k));
+                    showToast('All local data cleared successfully!', 'warning');
+                    setTimeout(() => location.reload(), 1500);
                 }
             }
         });
