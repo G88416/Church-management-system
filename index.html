@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Charity and Faith Mission</title>
     <link rel="stylesheet" href="common.css">
+    <script src="common.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -67,7 +68,8 @@
     </header>
     
     <nav>
-        <ul>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">☰</button>
+        <ul id="nav-menu">
             <li><a href="index.html" class="active">Dashboard</a></li>
             <li><a href="pages/members.html">Members</a></li>
             <li><a href="pages/visitors.html">Visitors</a></li>
@@ -87,6 +89,21 @@
     <main>
         <h2>Welcome to Charity and Faith Mission</h2>
         <p>Manage your organization's activities with comprehensive tools designed for efficiency and productivity.</p>
+        
+        <div class="summary-bar" id="dashboard-stats">
+            <div class="summary-item">
+                <span id="stat-members">—</span>Members
+            </div>
+            <div class="summary-item" style="background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);">
+                <span id="stat-visitors">—</span>Visitors
+            </div>
+            <div class="summary-item" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <span id="stat-events">—</span>Events
+            </div>
+            <div class="summary-item" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <span id="stat-tithes">—</span>Contributions
+            </div>
+        </div>
         
         <div class="dashboard-grid">
             <a href="pages/members.html" class="dashboard-card">
@@ -163,26 +180,29 @@
         </div>
     </main>
 
+    <footer>
+        &copy; <span id="year"></span> Charity and Faith Mission &mdash; Management System
+    </footer>
+
     <script>
         // Initialize Firebase when page loads
         window.addEventListener('load', () => {
             initializeFirebase();
+            setupLogout();
+
+            // Load dashboard stats
+            loadFromFirebase('members', (d) => { document.getElementById('stat-members').textContent = d.length; });
+            loadFromFirebase('visitors', (d) => { document.getElementById('stat-visitors').textContent = d.length; });
+            loadFromFirebase('events',   (d) => { document.getElementById('stat-events').textContent = d.length; });
+            loadFromFirebase('tithes',   (d) => { document.getElementById('stat-tithes').textContent = d.length; });
         });
 
-        // Logout functionality
-        document.getElementById('logout').addEventListener('click', () => {
-            if (confirm('Are you sure you want to logout?')) {
-                if (auth) {
-                    auth.signOut().then(() => {
-                        localStorage.removeItem('userSession');
-                        window.location.href = 'login.html';
-                    });
-                } else {
-                    localStorage.removeItem('userSession');
-                    window.location.href = 'login.html';
-                }
-            }
+        // Mobile nav toggle
+        document.getElementById('nav-toggle').addEventListener('click', () => {
+            document.getElementById('nav-menu').classList.toggle('open');
         });
+
+        document.getElementById('year').textContent = new Date().getFullYear();
     </script>
 </body>
 </html>

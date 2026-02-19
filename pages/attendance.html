@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance - Charity and Faith Mission</title>
     <link rel="stylesheet" href="../common.css">
+    <script src="../common.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -21,13 +22,14 @@
     </header>
     
     <nav>
-        <ul>
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">☰</button>
+        <ul id="nav-menu">
             <li><a href="../index.html">Dashboard</a></li>
             <li><a href="members.html">Members</a></li>
             <li><a href="visitors.html">Visitors</a></li>
             <li><a href="analytics.html">Analytics</a></li>
             <li><a href="events.html">Events</a></li>
-            <li><a href="tithes.html">Tithes & Offerings</a></li>
+            <li><a href="tithes.html">Tithes &amp; Offerings</a></li>
             <li><a href="admin.html">Admin</a></li>
             <li><a href="attendance.html" class="active">Attendance</a></li>
             <li><a href="prayers.html">Prayer Requests</a></li>
@@ -43,13 +45,37 @@
         <p>Record service attendance across different groups.</p>
         
         <form id="log-attendance-form">
-            <input type="text" id="attendance-branch" placeholder="Branch" required>
-            <input type="date" id="attendance-date" required>
-            <input type="number" id="attendance-youth" placeholder="Youth" min="0">
-            <input type="number" id="attendance-adult" placeholder="Adult" min="0">
-            <input type="number" id="attendance-sunday" placeholder="Sunday School" min="0">
+            <div class="form-row"><label for="attendance-branch">Branch *</label>
+            <input type="text" id="attendance-branch" placeholder="Branch" required></div>
+            <div class="form-row"><label for="attendance-date">Date *</label>
+            <input type="date" id="attendance-date" required></div>
+            <div class="form-row"><label for="attendance-youth">Youth</label>
+            <input type="number" id="attendance-youth" placeholder="Youth" min="0"></div>
+            <div class="form-row"><label for="attendance-adult">Adult</label>
+            <input type="number" id="attendance-adult" placeholder="Adult" min="0"></div>
+            <div class="form-row"><label for="attendance-sunday">Sunday School</label>
+            <input type="number" id="attendance-sunday" placeholder="Sunday School" min="0"></div>
             <button type="submit">Log Attendance</button>
         </form>
+
+        <div class="summary-bar" style="margin-top:20px;">
+            <div class="summary-item">
+                <span id="att-youth-total">0</span>Youth Total
+            </div>
+            <div class="summary-item" style="background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);">
+                <span id="att-adult-total">0</span>Adult Total
+            </div>
+            <div class="summary-item" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <span id="att-sunday-total">0</span>Sunday School Total
+            </div>
+            <div class="summary-item" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <span id="att-grand-total">0</span>Grand Total
+            </div>
+        </div>
+
+        <div class="table-toolbar" style="margin-top:15px;">
+            <h3>Attendance Records <span class="record-count" id="att-count"></span></h3>
+        </div>
         
         <table id="attendance-table">
             <thead>
@@ -69,44 +95,58 @@
 
     <script>
         initializeFirebase();
+        setupLogout();
+        document.getElementById('nav-toggle').addEventListener('click', () => {
+            document.getElementById('nav-menu').classList.toggle('open');
+        });
+
         const COLLECTION = 'attendance';
         
         function populateTable() {
             loadFromFirebase(COLLECTION, (data) => {
                 const tbody = document.querySelector('#attendance-table tbody');
                 tbody.innerHTML = '';
+                updateRecordCount('att-count', data.length);
+
+                let youthSum = 0, adultSum = 0, sundaySum = 0;
                 
                 if (data.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No attendance records yet. Log your first record above!</td></tr>';
-                    return;
+                } else {
+                    data.forEach((record) => {
+                        const youth = parseInt(record.youth) || 0;
+                        const adult = parseInt(record.adult) || 0;
+                        const sunday = parseInt(record.sunday) || 0;
+                        const total = youth + adult + sunday;
+                        youthSum += youth; adultSum += adult; sundaySum += sunday;
+                        
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${escapeHtml(record.branch)}</td>
+                            <td>${escapeHtml(formatDate(record.date))}</td>
+                            <td>${youth}</td>
+                            <td>${adult}</td>
+                            <td>${sunday}</td>
+                            <td><strong>${total}</strong></td>
+                            <td>
+                                <button class="btn-danger" onclick="deleteAttendance('${escapeHtml(record._docId || record.id)}')">Delete</button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
                 }
-                
-                data.forEach((record, index) => {
-                    const row = document.createElement('tr');
-                    const youth = parseInt(record.youth) || 0;
-                    const adult = parseInt(record.adult) || 0;
-                    const sunday = parseInt(record.sunday) || 0;
-                    const total = youth + adult + sunday;
-                    
-                    row.innerHTML = `
-                        <td>${record.branch || ''}</td>
-                        <td>${record.date || ''}</td>
-                        <td>${youth}</td>
-                        <td>${adult}</td>
-                        <td>${sunday}</td>
-                        <td><strong>${total}</strong></td>
-                        <td>
-                            <button class="btn-danger" onclick="deleteAttendance('${record.id || index}')">Delete</button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
+
+                document.getElementById('att-youth-total').textContent  = youthSum;
+                document.getElementById('att-adult-total').textContent  = adultSum;
+                document.getElementById('att-sunday-total').textContent = sundaySum;
+                document.getElementById('att-grand-total').textContent  = youthSum + adultSum + sundaySum;
             });
         }
         
         window.deleteAttendance = function(id) {
             if (confirm('Are you sure you want to delete this record?')) {
                 deleteFromFirebase(COLLECTION, id).then(() => {
+                    showToast('Attendance record deleted.', 'success');
                     populateTable();
                 });
             }
@@ -121,31 +161,15 @@
             const attendanceData = {
                 branch: document.getElementById('attendance-branch').value,
                 date: document.getElementById('attendance-date').value,
-                youth: youth,
-                adult: adult,
-                sunday: sunday,
+                youth, adult, sunday,
                 total: youth + adult + sunday
             };
             
             saveToFirebase(COLLECTION, attendanceData).then(() => {
                 e.target.reset();
                 populateTable();
-                alert('Attendance logged successfully!');
+                showToast('Attendance logged successfully!', 'success');
             });
-        });
-        
-        document.getElementById('logout').addEventListener('click', () => {
-            if (confirm('Are you sure you want to logout?')) {
-                if (auth) {
-                    auth.signOut().then(() => {
-                        localStorage.removeItem('userSession');
-                        window.location.href = '../login.html';
-                    });
-                } else {
-                    localStorage.removeItem('userSession');
-                    window.location.href = '../login.html';
-                }
-            }
         });
         
         populateTable();

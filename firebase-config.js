@@ -48,7 +48,7 @@ function saveToFirebase(collection, data) {
 function loadFromFirebase(collection, callback) {
     if (db) {
         db.collection(collection).onSnapshot((snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const data = snapshot.docs.map(doc => ({ _docId: doc.id, id: doc.id, ...doc.data() }));
             // Sort by createdAt if available, otherwise by document ID
             data.sort((a, b) => {
                 if (a.createdAt && b.createdAt) {
@@ -62,8 +62,8 @@ function loadFromFirebase(collection, callback) {
         // Fallback to localStorage
         const key = `charity_${collection}`;
         const data = JSON.parse(localStorage.getItem(key)) || [];
-        // Add numeric IDs for localStorage items
-        const dataWithIds = data.map((item, index) => ({ ...item, id: index }));
+        // _docId is the numeric index used for deletion; id comes from stored data
+        const dataWithIds = data.map((item, index) => ({ _docId: index, ...item }));
         callback(dataWithIds);
     }
 }
