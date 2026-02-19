@@ -31,10 +31,10 @@ const ROLE_PERMISSIONS = {
 // Check if user is authenticated
 function checkAuth() {
     const session = localStorage.getItem('userSession');
+    const currentPage = window.location.pathname;
     
     if (!session) {
         // Not logged in, redirect to login page
-        const currentPage = window.location.pathname;
         if (!currentPage.includes('login.html')) {
             window.location.href = currentPage.includes('/pages/') ? '../login.html' : 'login.html';
         }
