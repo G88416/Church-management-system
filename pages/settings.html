@@ -290,7 +290,24 @@
         if (currentUser && currentUser.role === 'admin') {
             document.getElementById('user-mgmt-heading').style.display = '';
             document.getElementById('user-mgmt-section').style.display = '';
-            ensureCurrentUserProfile().then(() => loadAppUsers());
+            // Wait for Firebase Auth state to be restored before creating the admin
+            // profile and loading users.  auth.currentUser is null until Firebase
+            // finishes restoring the persisted session, so calling
+            // ensureCurrentUserProfile() immediately (before onAuthStateChanged fires)
+            // causes it to return early without writing the profile.  Without that
+            // profile, Firestore's userRole() returns '' for the admin, the security
+            // rules block the appUsers collection listener, and newly created users
+            // never appear in the table.
+            if (db && auth) {
+                let initialized = false;
+                auth.onAuthStateChanged(() => {
+                    if (initialized) return;
+                    initialized = true;
+                    ensureCurrentUserProfile().then(() => loadAppUsers());
+                });
+            } else {
+                ensureCurrentUserProfile().then(() => loadAppUsers());
+            }
         }
 
         // Ensure the currently signed-in admin has a profile document in appUsers.
