@@ -8,7 +8,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
         * {
@@ -270,20 +269,10 @@
                         }
                     }
 
-                    // --- Step 3: Sync custom claim from Firestore profile (migration path) ---
-                    // If no custom claim is set yet but a Firestore profile exists,
-                    // call syncUserClaim to bootstrap the token claim for this user.
-                    if (!claimRole && hasFirestoreProfile && firestoreRole && functions) {
-                        try {
-                            const syncFn = functions.httpsCallable('syncUserClaim');
-                            const result = await syncFn();
-                            claimRole = result.data.role;
-                            // Force-refresh the token so subsequent getIdTokenResult() calls
-                            // include the newly-set claim.
-                            await credential.user.getIdToken(/* forceRefresh= */ true);
-                        } catch (syncErr) {
-                            console.warn('Could not sync user claim:', syncErr.message);
-                        }
+                    // --- Step 3: Use Firestore role directly (no Cloud Functions needed) ---
+                    // Roles are read from Firestore appUsers profile; no custom claims required.
+                    if (!claimRole && firestoreRole) {
+                        claimRole = firestoreRole;
                     }
 
                     // If no Firestore profile found, check localStorage profile as fallback.
