@@ -149,8 +149,7 @@
         <form id="login-form">
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" placeholder="Enter your username" required>
-            </div>
+                <input type="text" id="username" placeholder="Enter your username (lowercase)" required></div>
             
             <div class="form-group">
                 <label for="password">Password</label>
@@ -177,16 +176,15 @@
             <p><strong>Genesis Service:</strong> genesis / genesis123</p>
             <p><strong>Branch Co:</strong> branch / branch123</p>
             <p><strong>Pastors Info:</strong> pastor / pastor123</p>
+            <p style="margin-top:10px; font-size:12px; color:#999;">Admins can add and manage users via <em>Settings → User Management</em>.</p>
         </div>
     </div>
     
     <script>
-        // Demo user credentials for demonstration purposes only
-        // WARNING: This is NOT secure for production use!
-        // In production, use Firebase Authentication with email/password accounts
-        // created in the Firebase Console under Authentication > Users.
-        // Map each username to an email like: admin@charityfaithmission.org
-        const users = {
+        // Hardcoded demo credentials used as a fallback when Firestore is unavailable.
+        // In production, users are managed via the Settings → User Management panel
+        // and authenticated through Firebase Authentication.
+        const DEMO_USERS = {
             'admin': { password: 'admin123', role: 'admin', name: 'Admin User' },
             'genesis': { password: 'genesis123', role: 'genesis', name: 'Genesis Service' },
             'branch': { password: 'branch123', role: 'branch', name: 'Branch Co' },
@@ -195,6 +193,7 @@
 
         // Firebase email convention: <username>@charityfaithmission.org
         const FIREBASE_EMAIL_DOMAIN = 'charityfaithmission.org';
+        const APP_USERS_COLLECTION = 'appUsers';
         
         const form = document.getElementById('login-form');
         const errorMessage = document.getElementById('error-message');
@@ -206,57 +205,109 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const selectedRole = document.getElementById('role').value;
-            
-            // Hide previous error
             errorMessage.classList.remove('show');
 
-            if (!selectedRole) {
-                showError('Please select a role.');
-                return;
-            }
-            
-            // Validate demo credentials (role mapping)
-            if (users[username] && users[username].password === password) {
-                if (users[username].role !== selectedRole) {
-                    showError('Selected role does not match your credentials.');
-                    return;
-                }
+            const username = document.getElementById('username').value.trim().toLowerCase();
+            const password = document.getElementById('password').value;
+            const selectedRole = document.getElementById('role').value;
 
-                const userSession = {
-                    username: username,
-                    role: selectedRole,
-                    name: users[username].name,
-                    loginTime: new Date().toISOString()
-                };
+            if (!selectedRole) { showError('Please select a role.'); return; }
 
-                // Attempt Firebase Authentication if configured
-                if (auth) {
-                    const email = `${username}@${FIREBASE_EMAIL_DOMAIN}`;
-                    try {
-                        const userCredential = await auth.signInWithEmailAndPassword(email, password);
-                        userSession.firebaseUid = userCredential.user.uid;
-                    } catch (firebaseError) {
-                        const code = firebaseError.code;
-                        // If Firebase has this user but the password is wrong, reject login
-                        if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-                            showError('Invalid username or password.');
-                            return;
+            const loginBtn = form.querySelector('.login-btn');
+            loginBtn.disabled = true;
+
+            // ── Path 1: Firebase Authentication (primary when Firebase is available) ──
+            if (auth) {
+                const email = `${username}@${FIREBASE_EMAIL_DOMAIN}`;
+                try {
+                    const credential = await auth.signInWithEmailAndPassword(email, password);
+                    const uid = credential.user.uid;
+
+                    // Look up the user's profile in Firestore to get their role.
+                    let displayName = username;
+                    let firestoreRole = null;
+                    let hasFirestoreProfile = false;
+                    if (db) {
+                        try {
+                            const doc = await db.collection(APP_USERS_COLLECTION).doc(uid).get();
+                            if (doc.exists) {
+                                const data = doc.data();
+                                displayName = data.displayName || username;
+                                firestoreRole = data.role || null;
+                                hasFirestoreProfile = true;
+                            }
+                        } catch (fsErr) {
+                            console.warn('Firestore profile lookup failed:', fsErr.message);
                         }
-                        // For other errors (user not found in Firebase, network issues),
-                        // continue with the local demo session
-                        console.warn('Firebase sign-in skipped:', firebaseError.message);
+                    }
+
+                    // If a Firestore profile exists, the stored role is authoritative.
+                    // If no profile is found and this is not a known demo account, deny
+                    // access rather than allowing the user to self-assign a role.
+                    if (!hasFirestoreProfile && !DEMO_USERS[username]) {
+                        await auth.signOut();
+                        showError('Your account is not configured. Contact an administrator.');
+                        loginBtn.disabled = false;
+                        return;
+                    }
+
+                    if (firestoreRole && firestoreRole !== selectedRole) {
+                        await auth.signOut();
+                        showError('Selected role does not match your account.');
+                        loginBtn.disabled = false;
+                        return;
+                    }
+
+                    // Use the Firestore role when available; fall back to selectedRole only
+                    // for demo accounts that have a matching Firebase Auth entry.
+                    const effectiveRole = firestoreRole || selectedRole;
+
+                    localStorage.setItem('userSession', JSON.stringify({
+                        username,
+                        role: effectiveRole,
+                        name: displayName,
+                        firebaseUid: uid,
+                        loginTime: new Date().toISOString()
+                    }));
+                    window.location.href = 'index.html';
+                    return;
+                } catch (firebaseError) {
+                    const code = firebaseError.code;
+                    if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
+                        showError('Invalid username or password.');
+                        loginBtn.disabled = false;
+                        return;
+                    }
+                    if (code === 'auth/user-not-found' || code === 'auth/user-disabled') {
+                        // User doesn't have a Firebase Auth account — fall through to demo fallback.
+                        console.warn('Firebase user not found, trying demo fallback.');
+                    } else {
+                        // Network / config errors — fall through to demo fallback.
+                        console.warn('Firebase sign-in error, trying demo fallback:', firebaseError.message);
                     }
                 }
-
-                localStorage.setItem('userSession', JSON.stringify(userSession));
-                window.location.href = 'index.html';
-            } else {
-                showError('Invalid username or password.');
             }
+
+            // ── Path 2: Demo credential fallback ─────────────────────────────────────
+            const demoUser = DEMO_USERS[username];
+            if (demoUser && demoUser.password === password) {
+                if (demoUser.role !== selectedRole) {
+                    showError('Selected role does not match your credentials.');
+                    loginBtn.disabled = false;
+                    return;
+                }
+                localStorage.setItem('userSession', JSON.stringify({
+                    username,
+                    role: selectedRole,
+                    name: demoUser.name,
+                    loginTime: new Date().toISOString()
+                }));
+                window.location.href = 'index.html';
+                return;
+            }
+
+            showError('Invalid username or password.');
+            loginBtn.disabled = false;
         });
         
         // Initialize Firebase and check if user is already logged in

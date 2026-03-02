@@ -75,6 +75,71 @@
             <button id="clear-data" class="btn-danger">Clear All Data</button>
         </div>
         
+        <h3 id="user-mgmt-heading" style="display:none">👥 User Management</h3>
+        <div id="user-mgmt-section" style="display:none">
+            <p style="margin-bottom:15px; color:#555;">Add, edit or remove system users. New users are created in Firebase Authentication and their profiles are stored in Firestore.</p>
+
+            <form id="add-user-form">
+                <div class="form-row"><label for="new-user-displayname">Display Name *</label>
+                <input type="text" id="new-user-displayname" placeholder="Display Name" required></div>
+                <div class="form-row"><label for="new-user-username">Username *</label>
+                <input type="text" id="new-user-username" placeholder="Username (used for login)" required></div>
+                <div class="form-row"><label for="new-user-role">Role *</label>
+                <select id="new-user-role" required>
+                    <option value="">Select role</option>
+                    <option value="admin">Admin</option>
+                    <option value="genesis">Genesis Service</option>
+                    <option value="branch">Branch Co</option>
+                    <option value="pastor">Pastors Info</option>
+                </select></div>
+                <div class="form-row"><label for="new-user-password">Password *</label>
+                <input type="password" id="new-user-password" placeholder="Minimum 6 characters" required minlength="6"></div>
+                <button type="submit">Add User</button>
+            </form>
+
+            <div class="table-toolbar" style="margin-top:25px;">
+                <h4 style="color:#2a5298;">System Users <span class="record-count" id="user-count"></span></h4>
+                <div class="search-bar">
+                    <input type="search" id="user-search" placeholder="Search users…" aria-label="Search users">
+                </div>
+            </div>
+
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Display Name</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Edit User Modal -->
+        <div id="edit-user-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+            <div style="background:white; padding:30px; border-radius:12px; max-width:420px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+                <h3 style="color:#2a5298; margin-bottom:20px;">Edit User</h3>
+                <form id="edit-user-form" style="display:grid; gap:15px;">
+                    <input type="hidden" id="edit-user-uid">
+                    <div class="form-row"><label for="edit-displayname">Display Name</label>
+                    <input type="text" id="edit-displayname" required></div>
+                    <div class="form-row"><label for="edit-role">Role</label>
+                    <select id="edit-role" required>
+                        <option value="admin">Admin</option>
+                        <option value="genesis">Genesis Service</option>
+                        <option value="branch">Branch Co</option>
+                        <option value="pastor">Pastors Info</option>
+                    </select></div>
+                    <div style="display:flex; gap:10px; margin-top:5px;">
+                        <button type="submit">Save Changes</button>
+                        <button type="button" id="cancel-edit-user" class="btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <h3>Firebase Configuration</h3>
         <p style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
             <strong>Status:</strong> <span id="firebase-status">Checking…</span><br>
@@ -216,6 +281,172 @@
             input.click();
         });
         
+        // ── User Management (admin only) ──────────────────────────────────────
+        const FIREBASE_EMAIL_DOMAIN = 'charityfaithmission.org';
+        const APP_USERS_COLLECTION = 'appUsers';
+        let allAppUsers = [];
+
+        const currentUser = getCurrentUser();
+        if (currentUser && currentUser.role === 'admin') {
+            document.getElementById('user-mgmt-heading').style.display = '';
+            document.getElementById('user-mgmt-section').style.display = '';
+            loadAppUsers();
+        }
+
+        function loadAppUsers() {
+            if (!db) {
+                renderUsersTable([]);
+                return;
+            }
+            db.collection(APP_USERS_COLLECTION).onSnapshot((snapshot) => {
+                allAppUsers = snapshot.docs.map(doc => ({ _uid: doc.id, ...doc.data() }));
+                renderUsersTable(allAppUsers);
+            }, (err) => {
+                console.warn('Failed to load users:', err.message);
+                renderUsersTable([]);
+            });
+        }
+
+        function renderUsersTable(data) {
+            const tbody = document.querySelector('#users-table tbody');
+            tbody.innerHTML = '';
+            updateRecordCount('user-count', data.length);
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">No users found. Add a user above.</td></tr>';
+                return;
+            }
+            const roleLabels = { admin: 'Admin', genesis: 'Genesis Service', branch: 'Branch Co', pastor: 'Pastors Info' };
+            data.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${escapeHtml(user.username)}</td>
+                    <td>${escapeHtml(user.displayName)}</td>
+                    <td>${escapeHtml(roleLabels[user.role] || user.role)}</td>
+                    <td>
+                        <button class="edit-user-btn" data-uid="${escapeHtml(user._uid)}">Edit</button>
+                        <button class="delete-user-btn btn-danger" data-uid="${escapeHtml(user._uid)}" data-username="${escapeHtml(user.username)}">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        document.getElementById('user-search').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            renderUsersTable(allAppUsers.filter(u =>
+                [u.username, u.displayName, u.role].some(v => (v || '').toLowerCase().includes(term))
+            ));
+        });
+
+        // Event delegation for edit/delete buttons in the users table
+        document.querySelector('#users-table tbody').addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.edit-user-btn');
+            const deleteBtn = e.target.closest('.delete-user-btn');
+            if (editBtn) {
+                openEditUserModal(editBtn.dataset.uid);
+            } else if (deleteBtn) {
+                const uid = deleteBtn.dataset.uid;
+                const username = deleteBtn.dataset.username;
+                if (!confirm(`Delete user "${username}"? Their Firebase Authentication account will remain active until removed in the Firebase Console.`)) return;
+                db.collection(APP_USERS_COLLECTION).doc(uid).delete().then(() => {
+                    showToast('User profile deleted.', 'success');
+                }).catch(err => {
+                    showToast('Failed to delete user: ' + err.message, 'error');
+                });
+            }
+        });
+
+        document.getElementById('add-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!db) { showToast('Firebase not connected. Cannot add users.', 'error'); return; }
+            const username = document.getElementById('new-user-username').value.trim().toLowerCase();
+            const displayName = document.getElementById('new-user-displayname').value.trim();
+            const role = document.getElementById('new-user-role').value;
+            const password = document.getElementById('new-user-password').value;
+
+            const duplicate = allAppUsers.find(u => u.username === username);
+            if (duplicate) { showToast('Username already exists.', 'error'); return; }
+
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Adding…';
+
+            const email = `${username}@${FIREBASE_EMAIL_DOMAIN}`;
+            let newUid = null;
+
+            // Create Firebase Auth account via a secondary app instance so the
+            // current admin session is not affected.
+            if (typeof firebase !== 'undefined' && firebaseInitialized) {
+                let secondaryApp = null;
+                try {
+                    const secondaryAppName = 'userCreation';
+                    secondaryApp = firebase.apps.find(a => a.name === secondaryAppName)
+                        || firebase.initializeApp(firebaseConfig, secondaryAppName);
+                    const secondaryAuth = secondaryApp.auth();
+                    const credential = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+                    newUid = credential.user.uid;
+                    await secondaryAuth.signOut();
+                } catch (authErr) {
+                    if (authErr.code === 'auth/email-already-in-use') {
+                        showToast('A Firebase Auth account already exists for this username.', 'error');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Add User';
+                        return;
+                    }
+                    console.warn('Firebase Auth account creation failed:', authErr.message);
+                } finally {
+                    if (secondaryApp) {
+                        secondaryApp.delete().catch(() => {});
+                    }
+                }
+            }
+
+            const profileData = { username, displayName, role, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+            try {
+                if (newUid) {
+                    await db.collection(APP_USERS_COLLECTION).doc(newUid).set(profileData);
+                } else {
+                    await db.collection(APP_USERS_COLLECTION).add(profileData);
+                }
+                e.target.reset();
+                showToast('User added successfully!', 'success');
+            } catch (err) {
+                showToast('Failed to save user profile: ' + err.message, 'error');
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Add User';
+        });
+
+        window.openEditUserModal = function openEditUserModal(uid) {
+            const user = allAppUsers.find(u => u._uid === uid);
+            if (!user) return;
+            document.getElementById('edit-user-uid').value = uid;
+            document.getElementById('edit-displayname').value = user.displayName || '';
+            document.getElementById('edit-role').value = user.role || 'pastor';
+            document.getElementById('edit-user-modal').style.display = 'flex';
+        };
+
+        document.getElementById('cancel-edit-user').addEventListener('click', () => {
+            document.getElementById('edit-user-modal').style.display = 'none';
+        });
+
+        document.getElementById('edit-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const uid = document.getElementById('edit-user-uid').value;
+            const updates = {
+                displayName: document.getElementById('edit-displayname').value.trim(),
+                role: document.getElementById('edit-role').value
+            };
+            try {
+                await db.collection(APP_USERS_COLLECTION).doc(uid).update(updates);
+                document.getElementById('edit-user-modal').style.display = 'none';
+                showToast('User updated successfully!', 'success');
+            } catch (err) {
+                showToast('Failed to update user: ' + err.message, 'error');
+            }
+        });
+        // ── End User Management ───────────────────────────────────────────────
+
         // Clear all data (fixed to remove all charity_ keys)
         document.getElementById('clear-data').addEventListener('click', () => {
             if (confirm('⚠️ Are you sure you want to clear ALL local data? This action cannot be undone!')) {
