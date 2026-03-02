@@ -242,8 +242,26 @@
                     }
 
                     // If a Firestore profile exists, the stored role is authoritative.
-                    // If no profile is found and this is not a known demo account, deny
-                    // access rather than allowing the user to self-assign a role.
+                    // If no profile is found but Firebase Auth succeeded, auto-create
+                    // the profile so the user appears in admin user management and can
+                    // log in without needing a separate setup step.  The Firestore
+                    // security rules already permit a user to create their own profile
+                    // document with any valid role (bootstrap behaviour).
+                    if (!hasFirestoreProfile && db) {
+                        try {
+                            await db.collection(APP_USERS_COLLECTION).doc(uid).set({
+                                username,
+                                displayName: credential.user.displayName || username,
+                                role: selectedRole,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            firestoreRole = selectedRole;
+                            hasFirestoreProfile = true;
+                        } catch (createErr) {
+                            console.warn('Could not auto-create user profile:', createErr.message);
+                        }
+                    }
+
                     if (!hasFirestoreProfile && !DEMO_USERS[username]) {
                         await auth.signOut();
                         showError('Your account is not configured. Contact an administrator.');
