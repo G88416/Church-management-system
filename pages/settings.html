@@ -276,7 +276,11 @@
                             showToast('Selected file appears to be XML/HTML. Please upload a JSON backup file.', 'error');
                             return;
                         }
-                        const data = safeJsonParse(raw, null, 'backup file');
+                        const data = safeJsonParse(raw, undefined, 'backup file');
+                        if (data === undefined) {
+                            showToast('Error restoring data. Please check the file format.', 'error');
+                            return;
+                        }
                         if (data === null || typeof data !== 'object' || Array.isArray(data)) {
                             showToast('Selected file is not a valid JSON backup.', 'error');
                             return;

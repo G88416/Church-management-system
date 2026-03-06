@@ -41,7 +41,8 @@ function safeJsonParse(raw, fallback, label) {
         const preview = String(normalized).trim();
         const hint = preview.startsWith('<') ? ' (content looks like XML/HTML)' : '';
         const target = label ? ` for ${label}` : '';
-        console.warn(`Unable to parse JSON${target}${hint}:`, err.message);
+        const snippet = preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
+        console.warn(`Unable to parse JSON${target}${hint}:`, err.message, snippet);
         return fallback;
     }
 }
