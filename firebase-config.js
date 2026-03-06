@@ -27,12 +27,11 @@ const JSON_ERROR_SNIPPET_MAX_LENGTH = 300;
 const JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET = 297;
 
 /**
- * Safely parse JSON with a fallback value for invalid content or non-string input.
- * Returns the fallback when input is not a non-empty string or JSON parsing fails.
- * @param {string} raw
- * @param {*} fallback
- * @param {string|{label?: string, status?: number, contentType?: string}} [labelOrOptions]
- * @returns {*}
+ * Log a standardized warning when JSON parsing fails.
+ * @param {{label?: string, status?: number, contentType?: string}} options
+ * @param {string} message
+ * @param {string} snippet
+ * @param {string} hint
  */
 function logJsonParseWarning(options, message, snippet, hint) {
     const label = options && options.label ? options.label : '';
@@ -49,6 +48,27 @@ function logJsonParseWarning(options, message, snippet, hint) {
     console.warn(`Raw response (first ${JSON_ERROR_SNIPPET_MAX_LENGTH} chars):`, snippet);
 }
 
+/**
+ * Detect if a response body appears to be XML/HTML instead of JSON.
+ * @param {string} text
+ * @returns {boolean}
+ */
+function looksLikeMarkup(text) {
+    const lowerPreview = text.toLowerCase();
+    return lowerPreview.startsWith('<!doctype')
+        || lowerPreview.startsWith('<?xml')
+        || lowerPreview.startsWith('<html')
+        || /^<\s*[a-z][a-z0-9-]*[\s>]/.test(lowerPreview);
+}
+
+/**
+ * Safely parse JSON with a fallback value for invalid content or non-string input.
+ * Returns the fallback when input is not a non-empty string or JSON parsing fails.
+ * @param {string} raw
+ * @param {*} fallback
+ * @param {string|{label?: string, status?: number, contentType?: string}} [labelOrOptions]
+ * @returns {*}
+ */
 function safeJsonParse(raw, fallback, labelOrOptions) {
     const options = typeof labelOrOptions === 'string'
         ? { label: labelOrOptions }
@@ -56,15 +76,10 @@ function safeJsonParse(raw, fallback, labelOrOptions) {
     if (typeof raw !== 'string') return fallback;
     const normalized = raw.trim();
     if (normalized === '') return fallback;
-    const lowerPreview = normalized.toLowerCase();
-    const looksLikeMarkup = lowerPreview.startsWith('<!doctype')
-        || lowerPreview.startsWith('<?xml')
-        || lowerPreview.startsWith('<html')
-        || /^<\s*[a-z][a-z0-9-]*[\s>]/.test(lowerPreview);
     const snippet = normalized.length > JSON_ERROR_SNIPPET_MAX_LENGTH
         ? `${normalized.slice(0, JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET)}...`
         : normalized;
-    if (looksLikeMarkup) {
+    if (looksLikeMarkup(normalized)) {
         logJsonParseWarning(options, 'Response appears to be XML/HTML instead of JSON.', snippet, '(content looks like XML/HTML)');
         return fallback;
     }
@@ -85,6 +100,11 @@ function safeJsonParse(raw, fallback, labelOrOptions) {
  */
 const INVALID_RESPONSE_MESSAGE = 'readJsonResponse expects a fetch Response or axios response.';
 
+/**
+ * Extract the content-type header from a fetch Response or axios response.
+ * @param {Response|{headers?: Object}} response
+ * @returns {string|null}
+ */
 function getResponseContentType(response) {
     if (!response || !response.headers) return null;
     if (typeof response.headers.get === 'function') {
