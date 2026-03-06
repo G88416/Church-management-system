@@ -24,6 +24,13 @@ let analytics = null;
 let functions = null;
 let firebaseInitialized = false;
 
+/**
+ * Safely parse JSON with a fallback value for invalid content.
+ * @param {string|null} raw
+ * @param {*} fallback
+ * @param {string} [label]
+ * @returns {*}
+ */
 function safeJsonParse(raw, fallback, label) {
     if (raw === null || raw === undefined || raw === '') return fallback;
     try {

@@ -277,7 +277,7 @@
                             return;
                         }
                         const data = safeJsonParse(raw, null, 'backup file');
-                        if (!data || typeof data !== 'object') {
+                        if (!data || typeof data !== 'object' || Array.isArray(data)) {
                             showToast('Selected file is not a valid JSON backup.', 'error');
                             return;
                         }
