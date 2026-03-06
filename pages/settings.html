@@ -243,7 +243,7 @@
         // Backup data
         document.getElementById('backup-data').addEventListener('click', () => {
             const collections = ['members', 'visitors', 'events', 'tithes', 'attendance', 'prayers', 'sermons', 'volunteers', 'leaders'];
-            const allData = { org_info: safeJsonParse(localStorage.getItem('org_info'), {}, 'org_info') || {} };
+            const allData = { org_info: safeJsonParse(localStorage.getItem('org_info'), {}, 'org_info') };
             collections.forEach(c => {
                 allData[c] = safeJsonParse(localStorage.getItem(`charity_${c}`), [], `charity_${c}`);
             });
