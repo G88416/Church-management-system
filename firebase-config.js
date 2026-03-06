@@ -26,7 +26,7 @@ let firebaseInitialized = false;
 const JSON_ERROR_SNIPPET_MAX_LENGTH = 300;
 const JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET = 297;
 const MARKUP_PREVIEW_LENGTH = 200;
-// Pattern assumes the preview has already been lowercased.
+// Pattern assumes the preview has already been lowercased and allows optional whitespace after "<".
 const MARKUP_TAG_PATTERN = /^<\s*[a-z][a-z0-9-]*[\s>]/;
 
 /**
@@ -55,6 +55,7 @@ function logJsonParseWarning(options, message, snippet) {
  * @returns {boolean}
  */
 function looksLikeMarkup(text) {
+    // Limit inspection to a small prefix for performance on large payloads.
     const preview = text.slice(0, MARKUP_PREVIEW_LENGTH).toLowerCase();
     return preview.startsWith('<!doctype')
         || preview.startsWith('<?xml')
@@ -141,7 +142,7 @@ async function readJsonResponse(response, fallback, label) {
                 contentType
             });
         }
-        return data == null ? fallback : data;
+        return data ?? fallback;
     }
     console.warn(INVALID_RESPONSE_MESSAGE);
     return fallback;
