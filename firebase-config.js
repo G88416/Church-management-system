@@ -23,40 +23,84 @@ let auth = null;
 let analytics = null;
 let functions = null;
 let firebaseInitialized = false;
-const JSON_ERROR_SNIPPET_MAX_LENGTH = 120;
-const JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET = 117;
+const JSON_ERROR_SNIPPET_MAX_LENGTH = 300;
+const JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET = 297;
 
 /**
  * Safely parse JSON with a fallback value for invalid content or non-string input.
  * Returns the fallback when input is not a non-empty string or JSON parsing fails.
  * @param {string} raw
  * @param {*} fallback
- * @param {string} [label]
+ * @param {string|{label?: string, status?: number, contentType?: string}} [labelOrOptions]
  * @returns {*}
  */
-function safeJsonParse(raw, fallback, label) {
+function logJsonParseWarning(options, message, snippet, hint) {
+    const label = options && options.label ? options.label : '';
+    const target = label ? ` for ${label}` : '';
+    const hintText = hint ? ` ${hint}` : '';
+    console.warn(`Unable to parse JSON${target}${hintText}:`, message);
+    if (options && typeof options.status === 'number') {
+        console.warn('Status:', options.status);
+    }
+    if (options && options.contentType) {
+        console.warn('Content-Type:', options.contentType);
+    }
+    console.warn('Raw response (first 300 chars):', snippet);
+}
+
+function safeJsonParse(raw, fallback, labelOrOptions) {
+    const options = typeof labelOrOptions === 'string'
+        ? { label: labelOrOptions }
+        : (labelOrOptions || {});
     if (typeof raw !== 'string') return fallback;
     const normalized = raw.trim();
     if (normalized === '') return fallback;
+    const lowerPreview = normalized.toLowerCase();
+    const looksLikeMarkup = lowerPreview.startsWith('<!doctype')
+        || lowerPreview.startsWith('<?xml')
+        || lowerPreview.startsWith('<html')
+        || lowerPreview.startsWith('<');
+    const snippet = normalized.length > JSON_ERROR_SNIPPET_MAX_LENGTH
+        ? `${normalized.slice(0, JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET)}...`
+        : normalized;
+    if (looksLikeMarkup) {
+        logJsonParseWarning(options, 'Response appears to be XML/HTML instead of JSON.', snippet, '(content looks like XML/HTML)');
+        return fallback;
+    }
     try {
         return JSON.parse(normalized);
     } catch (err) {
-        const lowerPreview = normalized.toLowerCase();
-        const looksLikeMarkup = lowerPreview.startsWith('<!doctype')
-            || lowerPreview.startsWith('<?xml')
-            || lowerPreview.startsWith('<html');
-        const hint = looksLikeMarkup ? ' (content looks like XML/HTML)' : '';
-        const target = label ? ` for ${label}` : '';
-        const snippet = normalized.length > JSON_ERROR_SNIPPET_MAX_LENGTH
-            ? `${normalized.slice(0, JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET)}...`
-            : normalized;
-        console.warn(`Unable to parse JSON${target}${hint}:`, err.message, snippet);
+        logJsonParseWarning(options, err.message, snippet, '');
         return fallback;
     }
 }
 
+/**
+ * Read a fetch/axios response as text, log diagnostics, and safely parse JSON.
+ * @param {Response} response
+ * @param {*} fallback
+ * @param {string} [label]
+ * @returns {Promise<*>}
+ */
+async function readJsonResponse(response, fallback, label) {
+    if (!response || typeof response.text !== 'function') {
+        console.warn('readJsonResponse expects a fetch Response object.');
+        return fallback;
+    }
+    const text = await response.text();
+    const contentType = response.headers && typeof response.headers.get === 'function'
+        ? response.headers.get('content-type')
+        : '';
+    return safeJsonParse(text, fallback, {
+        label,
+        status: response.status,
+        contentType
+    });
+}
+
 if (typeof window !== 'undefined') {
     window.safeJsonParse = safeJsonParse;
+    window.readJsonResponse = readJsonResponse;
 }
 
 function initializeFirebase() {
