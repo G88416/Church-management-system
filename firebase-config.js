@@ -58,7 +58,7 @@ function looksLikeMarkup(text) {
     return lowerPreview.startsWith('<!doctype')
         || lowerPreview.startsWith('<?xml')
         || lowerPreview.startsWith('<html')
-        || /^<\s*[a-z][a-z0-9-]*[\s>]/.test(lowerPreview);
+        || /^<\s*[a-z][a-z0-9-]*[\s>]/.test(lowerPreview); // Opening tag like <div> or <svg ...>
 }
 
 /**
@@ -91,13 +91,6 @@ function safeJsonParse(raw, fallback, labelOrOptions) {
     }
 }
 
-/**
- * Read a fetch Response or axios response, log diagnostics, and safely parse JSON.
- * @param {Response|{data?: *, status?: number, headers?: Object}} response
- * @param {*} fallback
- * @param {string} [label]
- * @returns {Promise<*>}
- */
 const INVALID_RESPONSE_MESSAGE = 'readJsonResponse expects a fetch Response or axios response.';
 
 /**
@@ -110,12 +103,19 @@ function getResponseContentType(response) {
     if (typeof response.headers.get === 'function') {
         return response.headers.get('content-type');
     }
-    if (typeof response.headers === 'object' && response.headers['content-type']) {
+    if (typeof response.headers === 'object' && 'content-type' in response.headers) {
         return response.headers['content-type'];
     }
     return null;
 }
 
+/**
+ * Read a fetch Response or axios response, log diagnostics, and safely parse JSON.
+ * @param {Response|{data?: *, status?: number, headers?: Object}} response
+ * @param {*} fallback
+ * @param {string} [label]
+ * @returns {Promise<*>}
+ */
 async function readJsonResponse(response, fallback, label) {
     if (!response) {
         console.warn(INVALID_RESPONSE_MESSAGE);
