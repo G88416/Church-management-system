@@ -44,6 +44,10 @@ function safeJsonParse(raw, fallback, label) {
     }
 }
 
+if (typeof window !== 'undefined') {
+    window.safeJsonParse = safeJsonParse;
+}
+
 function initializeFirebase() {
     if (typeof firebase !== 'undefined' && !firebaseInitialized) {
         firebase.initializeApp(firebaseConfig);
