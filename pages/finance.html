@@ -534,7 +534,7 @@
                     <td>R ${parseFloat(e.amount || 0).toFixed(2)}</td>
                     <td>${escapeHtml(e.approvedBy || '')}</td>
                     <td>
-                        <button class="btn-secondary" data-action="edit-expense">Edit</button>
+                        <button class="btn-secondary edit-action" data-action="edit-expense" data-id="${escapeHtml(docId)}">Edit</button>
                         <button class="btn-danger" data-action="delete-expense">Delete</button>
                     </td>
                 `;
@@ -624,6 +624,7 @@
         const requisitionSubmitBtn = requisitionForm.querySelector('button[type="submit"]');
         let allRequisitions = [];
         let editingRequisitionId = null;
+        let editingRequisitionOriginalData = null;
 
         function renderRequisitions(data) {
             const tbody = document.getElementById('requisitions-tbody');
@@ -660,7 +661,7 @@
                     <td>${escapeHtml(r.payee || '')}</td>
                     <td><span class="badge ${statusClass}">${escapeHtml(r.status || 'Pending')}</span></td>
                     <td>
-                        <button class="btn-secondary" data-action="edit-req" style="font-size:12px;padding:5px 10px;">Edit</button>
+                        <button class="btn-secondary edit-action" data-action="edit-req" style="font-size:12px;padding:5px 10px;">Edit</button>
                         ${r.status === 'Pending' ? `
                         <button class="btn-secondary" data-action="approve-req" style="font-size:12px;padding:5px 10px;">Approve</button>
                         <button class="btn-danger"    data-action="reject-req"  style="font-size:12px;padding:5px 10px;">Reject</button>
@@ -713,24 +714,39 @@
                 description:  document.getElementById('req-description').value
             };
             const isEditing = Boolean(editingRequisitionId);
-            const action = isEditing
-                ? updateInFirebase(REQ_COLLECTION, editingRequisitionId, data)
-                : saveToFirebase(REQ_COLLECTION, {
+            let action;
+            if (isEditing) {
+                if (!editingRequisitionOriginalData) {
+                    action = Promise.reject(new Error('Unable to locate requisition details. Please try editing again.'));
+                } else {
+                    action = updateInFirebase(REQ_COLLECTION, editingRequisitionId, {
+                        ...data,
+                        status: editingRequisitionOriginalData.status,
+                        ...(editingRequisitionOriginalData.submittedAt ? { submittedAt: editingRequisitionOriginalData.submittedAt } : {})
+                    });
+                }
+            } else {
+                action = saveToFirebase(REQ_COLLECTION, {
                     ...data,
                     status: 'Pending',
                     submittedAt: new Date().toISOString()
                 });
+            }
 
             action.then(() => {
                 e.target.reset();
                 resetRequisitionForm();
                 showToast(isEditing ? 'Requisition updated successfully!' : 'Payment requisition submitted successfully!', 'success');
                 populateRequisitions();
+            }).catch((err) => {
+                showToast(err.message || 'Unable to save requisition. Please try again.', 'error');
+                resetRequisitionForm();
             });
         });
 
         function resetRequisitionForm() {
             editingRequisitionId = null;
+            editingRequisitionOriginalData = null;
             requisitionSubmitBtn.textContent = 'Submit Requisition';
         }
 
@@ -741,6 +757,10 @@
                 return;
             }
             editingRequisitionId = id;
+            editingRequisitionOriginalData = {
+                status: requisition.status || 'Pending',
+                submittedAt: requisition.submittedAt || null
+            };
             document.getElementById('req-requestor').value = requisition.requestor || '';
             document.getElementById('req-department').value = requisition.department || '';
             document.getElementById('req-purpose').value = requisition.purpose || '';

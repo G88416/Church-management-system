@@ -127,6 +127,7 @@
                         const sunday = parseInt(record.sunday) || 0;
                         const total = youth + adult + sunday;
                         youthSum += youth; adultSum += adult; sundaySum += sunday;
+                        const docId = record._docId || record.id;
                         
                         const row = document.createElement('tr');
                         row.innerHTML = `
@@ -137,10 +138,11 @@
                             <td>${sunday}</td>
                             <td><strong>${total}</strong></td>
                             <td>
-                                <button class="btn-secondary" onclick="editAttendance('${escapeHtml(record._docId || record.id)}')">Edit</button>
-                                <button class="btn-danger" onclick="deleteAttendance('${escapeHtml(record._docId || record.id)}')">Delete</button>
+                                <button class="btn-secondary edit-action" data-action="edit-attendance" data-id="${escapeHtml(docId)}">Edit</button>
+                                <button class="btn-danger" onclick="deleteAttendance('${escapeHtml(docId)}')">Delete</button>
                             </td>
                         `;
+                        row.querySelector('[data-action="edit-attendance"]').addEventListener('click', () => editAttendance(docId));
                         tbody.appendChild(row);
                     });
                 }

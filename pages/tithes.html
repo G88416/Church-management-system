@@ -160,6 +160,7 @@
             
             data.forEach((tithe) => {
                 const row = document.createElement('tr');
+                const docId = tithe._docId || tithe.id;
                 const displayType = normalizeContributionType(tithe.type);
                 row.innerHTML = `
                     <td>${escapeHtml(tithe.member)}</td>
@@ -168,10 +169,11 @@
                     <td>${escapeHtml(formatDate(tithe.date))}</td>
                     <td>${escapeHtml(tithe.branch)}</td>
                     <td>
-                        <button class="btn-secondary" onclick="editTithe('${escapeHtml(tithe._docId || tithe.id)}')">Edit</button>
-                        <button class="btn-danger" onclick="deleteTithe('${escapeHtml(tithe._docId || tithe.id)}')">Delete</button>
+                        <button class="btn-secondary edit-action" data-action="edit-tithe" data-id="${escapeHtml(docId)}">Edit</button>
+                        <button class="btn-danger" onclick="deleteTithe('${escapeHtml(docId)}')">Delete</button>
                     </td>
                 `;
+                row.querySelector('[data-action="edit-tithe"]').addEventListener('click', () => editTithe(docId));
                 tbody.appendChild(row);
             });
         }

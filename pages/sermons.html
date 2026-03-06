@@ -117,6 +117,7 @@
             
             data.forEach((sermon) => {
                 const row = document.createElement('tr');
+                const docId = sermon._docId || sermon.id;
                 const linkHtml = sermon.link
                     ? `<a href="${escapeHtml(sermon.link)}" target="_blank" rel="noopener noreferrer">▶ View</a>`
                     : '—';
@@ -127,10 +128,11 @@
                     <td>${linkHtml}</td>
                     <td>${escapeHtml(sermon.notes)}</td>
                     <td>
-                        <button class="btn-secondary" onclick="editSermon('${escapeHtml(sermon._docId || sermon.id)}')">Edit</button>
-                        <button class="btn-danger" onclick="deleteSermon('${escapeHtml(sermon._docId || sermon.id)}')">Delete</button>
+                        <button class="btn-secondary edit-action" data-action="edit-sermon" data-id="${escapeHtml(docId)}">Edit</button>
+                        <button class="btn-danger" onclick="deleteSermon('${escapeHtml(docId)}')">Delete</button>
                     </td>
                 `;
+                row.querySelector('[data-action="edit-sermon"]').addEventListener('click', () => editSermon(docId));
                 tbody.appendChild(row);
             });
         }

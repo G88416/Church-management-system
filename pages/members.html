@@ -132,6 +132,7 @@
             
             data.forEach((member) => {
                 const row = document.createElement('tr');
+                const docId = member._docId;
                 row.innerHTML = `
                     <td>${escapeHtml(member.name)}</td>
                     <td>${escapeHtml(member.surname)}</td>
@@ -142,10 +143,11 @@
                     <td>${escapeHtml(member.email)}</td>
                     <td>${escapeHtml(member.branch)}</td>
                     <td>
-                        <button class="btn-secondary" onclick="editMember('${escapeHtml(member._docId)}')">Edit</button>
-                        <button class="btn-danger" onclick="deleteMember('${escapeHtml(member._docId)}')">Delete</button>
+                        <button class="btn-secondary edit-action" data-action="edit-member" data-id="${escapeHtml(docId)}">Edit</button>
+                        <button class="btn-danger" onclick="deleteMember('${escapeHtml(docId)}')">Delete</button>
                     </td>
                 `;
+                row.querySelector('[data-action="edit-member"]').addEventListener('click', () => editMember(docId));
                 tbody.appendChild(row);
             });
         }

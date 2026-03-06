@@ -136,10 +136,11 @@
                             <option value="Praying" ${prayer.status==='Praying'?'selected':''}>Praying</option>
                             <option value="Answered" ${prayer.status==='Answered'?'selected':''}>Answered</option>
                         </select>
-                        <button class="btn-secondary" onclick="editPrayer('${escapeHtml(docId)}')" style="margin-top:4px;">Edit</button>
+                        <button class="btn-secondary edit-action" data-action="edit-prayer" data-id="${escapeHtml(docId)}" style="margin-top:4px;">Edit</button>
                         <button class="btn-danger" onclick="deletePrayer('${escapeHtml(docId)}')" style="margin-top:4px;">Delete</button>
                     </td>
                 `;
+                row.querySelector('[data-action="edit-prayer"]').addEventListener('click', () => editPrayer(docId));
                 tbody.appendChild(row);
             });
 

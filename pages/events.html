@@ -117,6 +117,7 @@
             
             data.forEach((event) => {
                 const row = document.createElement('tr');
+                const docId = event._docId || event.id;
                 row.innerHTML = `
                     <td>${escapeHtml(event.title)}</td>
                     <td>${escapeHtml(event.desc)}</td>
@@ -124,10 +125,11 @@
                     <td>${escapeHtml(event.branch)}</td>
                     <td>${escapeHtml(event.organizer)}</td>
                     <td>
-                        <button class="btn-secondary" onclick="editEvent('${escapeHtml(event._docId || event.id)}')">Edit</button>
-                        <button class="btn-danger" onclick="deleteEvent('${escapeHtml(event._docId || event.id)}')">Delete</button>
+                        <button class="btn-secondary edit-action" data-action="edit-event" data-id="${escapeHtml(docId)}">Edit</button>
+                        <button class="btn-danger" onclick="deleteEvent('${escapeHtml(docId)}')">Delete</button>
                     </td>
                 `;
+                row.querySelector('[data-action="edit-event"]').addEventListener('click', () => editEvent(docId));
                 tbody.appendChild(row);
             });
         }
