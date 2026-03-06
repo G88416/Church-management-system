@@ -26,6 +26,7 @@ let firebaseInitialized = false;
 
 /**
  * Safely parse JSON with a fallback value for invalid content or non-string input.
+ * Returns the fallback when input is not a non-empty string or JSON parsing fails.
  * @param {string} raw
  * @param {*} fallback
  * @param {string} [label]
