@@ -32,11 +32,12 @@ let firebaseInitialized = false;
  * @returns {*}
  */
 function safeJsonParse(raw, fallback, label) {
-    if (raw === null || raw === undefined || raw === '') return fallback;
+    const normalized = typeof raw === 'string' ? raw.trim() : raw;
+    if (normalized === null || normalized === undefined || normalized === '') return fallback;
     try {
-        return JSON.parse(raw);
+        return JSON.parse(normalized);
     } catch (err) {
-        const preview = String(raw).trim();
+        const preview = String(normalized).trim();
         const hint = preview.startsWith('<') ? ' (content looks like XML/HTML)' : '';
         const target = label ? ` for ${label}` : '';
         console.warn(`Unable to parse JSON${target}${hint}:`, err.message);
