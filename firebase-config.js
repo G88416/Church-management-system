@@ -25,19 +25,18 @@ let functions = null;
 let firebaseInitialized = false;
 const JSON_ERROR_SNIPPET_MAX_LENGTH = 300;
 const JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET = 297;
+const MARKUP_TAG_PATTERN = /^<\s*[a-z][a-z0-9-]*[\s>]/;
 
 /**
  * Log a standardized warning when JSON parsing fails.
  * @param {{label?: string, status?: number, contentType?: string}} options
  * @param {string} message
  * @param {string} snippet
- * @param {string} hint
  */
-function logJsonParseWarning(options, message, snippet, hint) {
+function logJsonParseWarning(options, message, snippet) {
     const label = options && options.label ? options.label : '';
     const target = label ? ` for ${label}` : '';
-    const hintText = hint ? ` ${hint}` : '';
-    console.warn(`Unable to parse JSON${target}${hintText}:`, message);
+    console.warn(`Unable to parse JSON${target}:`, message);
     if (options && typeof options.status === 'number') {
         console.warn('Status:', options.status);
     }
@@ -55,11 +54,10 @@ function logJsonParseWarning(options, message, snippet, hint) {
  */
 function looksLikeMarkup(text) {
     const lowerPreview = text.toLowerCase();
-    const markupTagPattern = /^<\s*[a-z][a-z0-9-]*[\s>]/;
     return lowerPreview.startsWith('<!doctype')
         || lowerPreview.startsWith('<?xml')
         || lowerPreview.startsWith('<html')
-        || markupTagPattern.test(lowerPreview);
+        || MARKUP_TAG_PATTERN.test(lowerPreview);
 }
 
 /**
@@ -81,13 +79,13 @@ function safeJsonParse(raw, fallback, labelOrOptions) {
         ? `${normalized.slice(0, JSON_ERROR_SNIPPET_ELLIPSIS_OFFSET)}...`
         : normalized;
     if (looksLikeMarkup(normalized)) {
-        logJsonParseWarning(options, 'Response appears to be XML/HTML instead of JSON.', snippet, '(content looks like XML/HTML)');
+        logJsonParseWarning(options, 'Response appears to be XML/HTML instead of JSON.', snippet);
         return fallback;
     }
     try {
         return JSON.parse(normalized);
     } catch (err) {
-        logJsonParseWarning(options, err.message, snippet, '');
+        logJsonParseWarning(options, err.message, snippet);
         return fallback;
     }
 }
@@ -104,11 +102,8 @@ function getResponseContentType(response) {
     if (typeof response.headers.get === 'function') {
         return response.headers.get('content-type');
     }
-    if (typeof response.headers === 'object' && 'content-type' in response.headers) {
-        return response.headers['content-type'];
-    }
-    if (typeof response.headers === 'object' && 'Content-Type' in response.headers) {
-        return response.headers['Content-Type'];
+    if (typeof response.headers === 'object') {
+        return response.headers['content-type'] ?? response.headers['Content-Type'] ?? null;
     }
     return null;
 }
