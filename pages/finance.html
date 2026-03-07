@@ -126,6 +126,9 @@
                 <div class="summary-item" style="background:linear-gradient(135deg,#56ab2f 0%,#a8e063 100%);">
                     <span id="income-total-offering">R 0.00</span>Total Missions Offering
                 </div>
+                <div class="summary-item" style="background:linear-gradient(135deg,#ffd54f 0%,#ffb74d 100%);color:#333;">
+                    <span id="income-total-branch-offering">R 0.00</span>Branch Offering
+                </div>
                 <div class="summary-item" style="background:linear-gradient(135deg,#4facfe 0%,#00f2fe 100%);">
                     <span id="income-total-eft">R 0.00</span>Total EFT
                 </div>
@@ -140,6 +143,7 @@
                         <th>Month</th>
                         <th>Tithes (R)</th>
                         <th>Missions Offering (R)</th>
+                        <th>Branch Offering (R)</th>
                         <th>EFT (R)</th>
                         <th>Total Income (R)</th>
                         <th>Total Expenses (R)</th>
@@ -147,7 +151,7 @@
                     </tr>
                 </thead>
                 <tbody id="income-tbody">
-                    <tr><td colspan="7" style="text-align:center">Loading…</td></tr>
+                    <tr><td colspan="8" style="text-align:center">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -354,6 +358,7 @@
         ═══════════════════════════════════════════ */
         let allTithes = [];
         let allExpenses = [];
+        let allAttendance = [];
 
         const MONTHS = ['January','February','March','April','May','June',
                         'July','August','September','October','November','December'];
@@ -389,10 +394,21 @@
                 const key = getMonthKey(t.date);
                 if (!key) return;
                 if (yearFilter && !key.startsWith(yearFilter)) return;
-                if (!incomeByMonth[key]) incomeByMonth[key] = { Tithe:0, Offering:0, EFT:0 };
+                if (!incomeByMonth[key]) incomeByMonth[key] = { Tithe:0, Offering:0, BranchOffering:0, EFT:0 };
                 const amt = parseFloat(t.amount) || 0;
                 const type = normalizeIncomeType(t.type);
                 incomeByMonth[key][type] += amt;
+            });
+
+            // Aggregate attendance branch offerings by month
+            allAttendance.forEach(record => {
+                const branchOffering = parseFloat(record.branchOffering) || 0;
+                if (!branchOffering) return;
+                const key = getMonthKey(record.date);
+                if (!key) return;
+                if (yearFilter && !key.startsWith(yearFilter)) return;
+                if (!incomeByMonth[key]) incomeByMonth[key] = { Tithe:0, Offering:0, BranchOffering:0, EFT:0 };
+                incomeByMonth[key].BranchOffering += branchOffering;
             });
 
             // Aggregate expenses by month
@@ -413,14 +429,14 @@
             tbody.innerHTML = '';
 
             if (sortedKeys.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No income records found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No income records found.</td></tr>';
                 updateIncomeSummary([]);
                 return;
             }
 
             sortedKeys.forEach(key => {
-                const income = incomeByMonth[key] || { Tithe:0, Offering:0, EFT:0 };
-                const totalIncome = income.Tithe + income.Offering + income.EFT;
+                const income = incomeByMonth[key] || { Tithe:0, Offering:0, BranchOffering:0, EFT:0 };
+                const totalIncome = income.Tithe + income.Offering + income.BranchOffering + income.EFT;
                 const totalExp = expenseByMonth[key] || 0;
                 const net = totalIncome - totalExp;
                 const [year, month] = key.split('-');
@@ -431,6 +447,7 @@
                     <td class="month-label">${escapeHtml(label)}</td>
                     <td>R ${income.Tithe.toFixed(2)}</td>
                     <td>R ${income.Offering.toFixed(2)}</td>
+                    <td>R ${income.BranchOffering.toFixed(2)}</td>
                     <td>R ${income.EFT.toFixed(2)}</td>
                     <td>R ${totalIncome.toFixed(2)}</td>
                     <td>R ${totalExp.toFixed(2)}</td>
@@ -440,25 +457,33 @@
             });
 
             updateIncomeSummary(sortedKeys.map(k => ({
-                income: incomeByMonth[k] || { Tithe:0, Offering:0, EFT:0 }
+                income: incomeByMonth[k] || { Tithe:0, Offering:0, BranchOffering:0, EFT:0 }
             })));
         }
 
         function updateIncomeSummary(rows) {
+            const yearFilter = document.getElementById('income-year-filter').value;
             const filtered = allTithes.filter(t => {
                 const key = getMonthKey(t.date);
-                const yearFilter = document.getElementById('income-year-filter').value;
                 return key && (!yearFilter || key.startsWith(yearFilter));
             });
-            const sums = { Tithe:0, Offering:0, EFT:0 };
+            const sums = { Tithe:0, Offering:0, BranchOffering:0, EFT:0 };
             filtered.forEach(t => {
                 const amt = parseFloat(t.amount) || 0;
                 const type = normalizeIncomeType(t.type);
                 sums[type] += amt;
             });
-            const total = sums.Tithe + sums.Offering + sums.EFT;
+            const attendanceFiltered = allAttendance.filter(record => {
+                const key = getMonthKey(record.date);
+                return key && (!yearFilter || key.startsWith(yearFilter));
+            });
+            attendanceFiltered.forEach(record => {
+                sums.BranchOffering += parseFloat(record.branchOffering) || 0;
+            });
+            const total = sums.Tithe + sums.Offering + sums.BranchOffering + sums.EFT;
             document.getElementById('income-total-tithe').textContent    = 'R ' + sums.Tithe.toFixed(2);
             document.getElementById('income-total-offering').textContent = 'R ' + sums.Offering.toFixed(2);
+            document.getElementById('income-total-branch-offering').textContent = 'R ' + sums.BranchOffering.toFixed(2);
             document.getElementById('income-total-eft').textContent = 'R ' + sums.EFT.toFixed(2);
             document.getElementById('income-grand-total').textContent    = 'R ' + total.toFixed(2);
         }
@@ -472,6 +497,12 @@
             allExpenses.forEach(e => {
                 const key = getMonthKey(e.date);
                 if (key) years.add(key.split('-')[0]);
+            });
+            allAttendance.forEach(record => {
+                const key = getMonthKey(record.date);
+                if (key && (parseFloat(record.branchOffering) || 0)) {
+                    years.add(key.split('-')[0]);
+                }
             });
             const sel = document.getElementById('income-year-filter');
             const current = sel.value;
@@ -796,6 +827,11 @@
         /* ── Initial data load ── */
         loadFromFirebase('tithes', data => {
             allTithes = data;
+            populateYearFilter();
+            renderIncomeTable();
+        });
+        loadFromFirebase('attendance', data => {
+            allAttendance = data;
             populateYearFilter();
             renderIncomeTable();
         });
