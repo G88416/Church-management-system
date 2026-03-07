@@ -58,6 +58,8 @@
             <input type="number" id="attendance-adult" placeholder="Adult" min="0"></div>
             <div class="form-row"><label for="attendance-sunday">Sunday School</label>
             <input type="number" id="attendance-sunday" placeholder="Sunday School" min="0"></div>
+            <div class="form-row"><label for="attendance-branch-offering">Branch Offering (R)</label>
+            <input type="number" id="attendance-branch-offering" placeholder="Branch Offering" min="0" step="0.01" inputmode="decimal"></div>
             <button type="submit">Log Attendance</button>
         </form>
 
@@ -88,6 +90,7 @@
                     <th>Youth</th>
                     <th>Adult</th>
                     <th>Sunday School</th>
+                    <th>Branch Offering (R)</th>
                     <th>Total</th>
                     <th>Actions</th>
                 </tr>
@@ -119,12 +122,13 @@
                 let youthSum = 0, adultSum = 0, sundaySum = 0;
                 
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No attendance records yet. Log your first record above!</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No attendance records yet. Log your first record above!</td></tr>';
                 } else {
                     data.forEach((record) => {
                         const youth = parseInt(record.youth) || 0;
                         const adult = parseInt(record.adult) || 0;
                         const sunday = parseInt(record.sunday) || 0;
+                        const branchOffering = parseFloat(record.branchOffering) || 0;
                         const total = youth + adult + sunday;
                         youthSum += youth; adultSum += adult; sundaySum += sunday;
                         const docId = record._docId || record.id;
@@ -136,6 +140,7 @@
                             <td>${youth}</td>
                             <td>${adult}</td>
                             <td>${sunday}</td>
+                            <td>R ${branchOffering.toFixed(2)}</td>
                             <td><strong>${total}</strong></td>
                             <td>
                                 <button class="btn-secondary edit-action" data-action="edit-attendance" data-id="${escapeHtml(docId)}">Edit</button>
@@ -180,6 +185,7 @@
             document.getElementById('attendance-youth').value = record.youth || '';
             document.getElementById('attendance-adult').value = record.adult || '';
             document.getElementById('attendance-sunday').value = record.sunday || '';
+            document.getElementById('attendance-branch-offering').value = record.branchOffering ?? '';
             attendanceSubmitBtn.textContent = 'Update Attendance';
             attendanceForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
             showToast('Editing attendance. Update details and submit to save.', 'info');
@@ -190,11 +196,13 @@
             const youth = parseInt(document.getElementById('attendance-youth').value) || 0;
             const adult = parseInt(document.getElementById('attendance-adult').value) || 0;
             const sunday = parseInt(document.getElementById('attendance-sunday').value) || 0;
+            const branchOffering = parseFloat(document.getElementById('attendance-branch-offering').value) || 0;
             
             const attendanceData = {
                 branch: document.getElementById('attendance-branch').value,
                 date: document.getElementById('attendance-date').value,
                 youth, adult, sunday,
+                branchOffering,
                 total: youth + adult + sunday
             };
             const isEditing = Boolean(editingAttendanceId);
