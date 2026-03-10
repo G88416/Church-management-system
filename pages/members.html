@@ -146,7 +146,7 @@
         function populateMinistryOptions(ministries) {
             const items = sortMinistries(ministries && ministries.length ? ministries : getDefaultMinistries())
                 .map(item => item.name)
-                .filter(Boolean)
+                .filter(Boolean);
             memberMinistrySelect.innerHTML = '<option value="">Select Ministry</option>' + items.map((name) =>
                 `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
             ).join('');

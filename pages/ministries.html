@@ -97,9 +97,12 @@
         let allMembers = [];
         let editingMinistryId = null;
 
-        function getMemberCount(ministryName) {
-            const target = normalizeMinistryKey(ministryName);
-            return allMembers.filter(member => normalizeMinistryKey(member.ministry) === target).length;
+        function buildMemberCounts() {
+            return allMembers.reduce((counts, member) => {
+                const key = normalizeMinistryKey(member.ministry);
+                if (key) counts[key] = (counts[key] || 0) + 1;
+                return counts;
+            }, {});
         }
 
         function renderFolderCards(data) {
@@ -109,9 +112,10 @@
                 return;
             }
 
+            const memberCounts = buildMemberCounts();
             grid.innerHTML = data.map((ministry) => {
                 const name = ministry.name || 'Untitled Ministry';
-                const memberCount = getMemberCount(name);
+                const memberCount = memberCounts[normalizeMinistryKey(name)] || 0;
                 return `
                     <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; border-radius:12px; padding:18px; box-shadow:0 10px 25px rgba(102,126,234,0.18);">
                         <div style="font-size:2rem; margin-bottom:10px;">📁</div>
@@ -132,10 +136,11 @@
                 return;
             }
 
+            const memberCounts = buildMemberCounts();
             data.forEach((ministry) => {
                 const row = document.createElement('tr');
                 const docId = ministry._docId || ministry.id;
-                const memberCount = getMemberCount(ministry.name);
+                const memberCount = memberCounts[normalizeMinistryKey(ministry.name)] || 0;
                 row.innerHTML = `
                     <td>${escapeHtml(ministry.name)}</td>
                     <td>${escapeHtml(ministry.leader)}</td>
