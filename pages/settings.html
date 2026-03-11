@@ -397,7 +397,7 @@
                 }
                 return items.concat(String(record[field] || fallback).trim());
             }, []);
-            return new Set(values.map(value => String(value || fallback).trim() || fallback)).size;
+            return new Set(values.map(value => String(value).trim() || fallback)).size;
         }
 
         function buildCounts(records, field, fallback = 'Unspecified') {
@@ -408,7 +408,7 @@
                     ? (ministryValues.length ? ministryValues : [fallback])
                     : [String(record[field] || fallback).trim() || fallback];
                 values.forEach((value) => {
-                    const key = String(value || fallback).trim() || fallback;
+                    const key = String(value).trim() || fallback;
                     totals[key] = (totals[key] || 0) + 1;
                 });
             });
