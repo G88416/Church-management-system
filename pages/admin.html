@@ -54,10 +54,6 @@
             <input type="text" id="leader-name" placeholder="Leader Name" required></div>
             <div class="form-row"><label for="leader-role">Role / Position</label>
             <input type="text" id="leader-role" placeholder="Role/Position"></div>
-            <div class="form-row"><label for="leader-email">Email</label>
-            <input type="email" id="leader-email" placeholder="Email"></div>
-            <div class="form-row"><label for="leader-phone">Phone</label>
-            <input type="tel" id="leader-phone" placeholder="Phone"></div>
             <button type="submit">Add Leader</button>
         </form>
 
@@ -73,8 +69,6 @@
                 <tr>
                     <th>Name</th>
                     <th>Role</th>
-                    <th>Email</th>
-                    <th>Phone</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -90,10 +84,36 @@
         });
 
         const COLLECTION = 'leaders';
+        const LOCAL_STORAGE_ID_PATTERN = /^\d+$/;
         const leaderForm = document.getElementById('add-leader-form');
         const leaderSubmitBtn = leaderForm.querySelector('button[type="submit"]');
         let allLeaders = [];
         let editingLeaderId = null;
+
+        function saveLeaderRecord(leaderData) {
+            if (!editingLeaderId) {
+                return saveToFirebase(COLLECTION, leaderData);
+            }
+
+            if (db && typeof editingLeaderId === 'string' && !LOCAL_STORAGE_ID_PATTERN.test(editingLeaderId)) {
+                return db.collection(COLLECTION).doc(editingLeaderId).set({
+                    ...leaderData,
+                    email: firebase.firestore.FieldValue.delete(),
+                    phone: firebase.firestore.FieldValue.delete()
+                }, { merge: true });
+            }
+
+            const key = `charity_${COLLECTION}`;
+            const data = JSON.parse(localStorage.getItem(key) || '[]');
+            const numericId = typeof editingLeaderId === 'number' ? editingLeaderId : parseInt(editingLeaderId, 10);
+            if (!Number.isNaN(numericId) && data[numericId]) {
+                const currentRecord = data[numericId] || {};
+                const { email: _email, phone: _phone, ...remainingFields } = currentRecord;
+                data[numericId] = { ...remainingFields, ...leaderData };
+                localStorage.setItem(key, JSON.stringify(data));
+            }
+            return Promise.resolve();
+        }
         
         function renderTable(data) {
             const tbody = document.querySelector('#leaders-table tbody');
@@ -101,7 +121,7 @@
             updateRecordCount('leader-count', data.length);
             
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">No leaders found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">No leaders found.</td></tr>';
                 return;
             }
             
@@ -111,8 +131,6 @@
                 row.innerHTML = `
                     <td>${escapeHtml(leader.name)}</td>
                     <td>${escapeHtml(leader.role)}</td>
-                    <td>${escapeHtml(leader.email)}</td>
-                    <td>${escapeHtml(leader.phone)}</td>
                     <td>
                         <button class="btn-secondary edit-action" data-action="edit-leader" data-id="${escapeHtml(docId)}">Edit</button>
                         <button class="btn-danger" onclick="deleteLeader('${escapeHtml(docId)}')">Delete</button>
@@ -133,7 +151,7 @@
         document.getElementById('leader-search').addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
             const filtered = allLeaders.filter(l =>
-                [l.name, l.role, l.email, l.phone].some(v => (v || '').toLowerCase().includes(term))
+                [l.name, l.role].some(v => (v || '').toLowerCase().includes(term))
             );
             renderTable(filtered);
         });
@@ -161,8 +179,6 @@
             editingLeaderId = id;
             document.getElementById('leader-name').value = leader.name || '';
             document.getElementById('leader-role').value = leader.role || '';
-            document.getElementById('leader-email').value = leader.email || '';
-            document.getElementById('leader-phone').value = leader.phone || '';
             leaderSubmitBtn.textContent = 'Update Leader';
             leaderForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
             showToast('Editing leader. Update details and submit to save.', 'info');
@@ -172,14 +188,10 @@
             e.preventDefault();
             const leaderData = {
                 name: document.getElementById('leader-name').value,
-                role: document.getElementById('leader-role').value,
-                email: document.getElementById('leader-email').value,
-                phone: document.getElementById('leader-phone').value
+                role: document.getElementById('leader-role').value
             };
             const isEditing = Boolean(editingLeaderId);
-            const action = isEditing
-                ? updateInFirebase(COLLECTION, editingLeaderId, leaderData)
-                : saveToFirebase(COLLECTION, leaderData);
+            const action = saveLeaderRecord(leaderData);
 
             action.then(() => {
                 e.target.reset();

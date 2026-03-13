@@ -46,11 +46,23 @@
         </ul>
     </nav>
     
-    <main>
-        <h2>📖 Sermon Library</h2>
-        <p>Archive and manage sermons and teachings.</p>
+        <main>
+            <h2>📖 Sermon Library</h2>
+            <p>Archive and manage sermons and teachings.</p>
+
+            <div class="table-toolbar">
+                <h3>Sermon Folders</h3>
+            </div>
+            <div id="sermon-folders" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:15px; margin-bottom:25px;"></div>
         
         <form id="add-sermon-form">
+            <div class="form-row"><label for="sermon-folder">Folder *</label>
+            <select id="sermon-folder" required>
+                <option value="Sunday Sermons">Sunday Sermons</option>
+                <option value="Discipleship Teaching">Discipleship Teaching</option>
+                <option value="Cell Guide">Cell Guide</option>
+                <option value="Prayer Materials">Prayer Materials</option>
+            </select></div>
             <div class="form-row"><label for="sermon-title">Sermon Title *</label>
             <input type="text" id="sermon-title" placeholder="Sermon Title" required></div>
             <div class="form-row"><label for="sermon-speaker">Speaker</label>
@@ -74,6 +86,7 @@
         <table id="sermons-table">
             <thead>
                 <tr>
+                    <th>Folder</th>
                     <th>Title</th>
                     <th>Speaker</th>
                     <th>Date</th>
@@ -101,10 +114,60 @@
         });
 
         const COLLECTION = 'sermons';
+        const SERMON_FOLDERS = [
+            { name: 'Sunday Sermons', icon: '📁', description: 'Weekly Sunday sermon archive' },
+            { name: 'Discipleship Teaching', icon: '📘', description: 'Discipleship lessons and teachings' },
+            { name: 'Cell Guide', icon: '🧭', description: 'Cell group guides and study notes' },
+            { name: 'Prayer Materials', icon: '🙏', description: 'Prayer guides and support materials' }
+        ];
         const sermonForm = document.getElementById('add-sermon-form');
         const sermonSubmitBtn = sermonForm.querySelector('button[type="submit"]');
         let allSermons = [];
         let editingSermonId = null;
+
+        function normalizeSermonFolder(value) {
+            const normalized = String(value || '').trim().toLowerCase();
+            const aliases = {
+                'sunday sermon': 'Sunday Sermons',
+                'sunday sermons': 'Sunday Sermons',
+                'discipleship teaching': 'Discipleship Teaching',
+                'discipleship teachings': 'Discipleship Teaching',
+                'cell guide': 'Cell Guide',
+                'cell guides': 'Cell Guide',
+                'prayer material': 'Prayer Materials',
+                'prayer materials': 'Prayer Materials'
+            };
+            return aliases[normalized] || 'Sunday Sermons';
+        }
+
+        function renderFolderCards(data) {
+            const grid = document.getElementById('sermon-folders');
+            const counts = data.reduce((result, sermon) => {
+                const folder = normalizeSermonFolder(sermon.folder);
+                result[folder] = (result[folder] || 0) + 1;
+                return result;
+            }, {});
+
+            grid.innerHTML = SERMON_FOLDERS.map((folder) => {
+                const count = counts[folder.name] || 0;
+                return `
+                    <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; border-radius:12px; padding:18px; box-shadow:0 10px 25px rgba(102,126,234,0.18);">
+                        <div style="font-size:2rem; margin-bottom:10px;">${folder.icon}</div>
+                        <h4 style="margin:0 0 8px;">${escapeHtml(folder.name)}</h4>
+                        <p style="margin:0 0 12px; opacity:0.92;">${escapeHtml(folder.description)}</p>
+                        <small style="display:block; opacity:0.95;">${count} sermon${count === 1 ? '' : 's'}</small>
+                    </div>`;
+            }).join('');
+        }
+
+        function applyFilters() {
+            const term = document.getElementById('sermon-search').value.toLowerCase();
+            const filtered = allSermons.filter(s =>
+                [normalizeSermonFolder(s.folder), s.title, s.speaker, s.notes].some(v => (v || '').toLowerCase().includes(term))
+            );
+            renderFolderCards(filtered);
+            renderTable(filtered);
+        }
         
         function renderTable(data) {
             const tbody = document.querySelector('#sermons-table tbody');
@@ -112,17 +175,19 @@
             updateRecordCount('sermon-count', data.length);
             
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">No sermons found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No sermons found.</td></tr>';
                 return;
             }
             
             data.forEach((sermon) => {
                 const row = document.createElement('tr');
                 const docId = sermon._docId || sermon.id;
+                const folder = normalizeSermonFolder(sermon.folder);
                 const linkHtml = sermon.link
                     ? `<a href="${escapeHtml(sermon.link)}" target="_blank" rel="noopener noreferrer">▶ View</a>`
                     : '—';
                 row.innerHTML = `
+                    <td>${escapeHtml(folder)}</td>
                     <td>${escapeHtml(sermon.title)}</td>
                     <td>${escapeHtml(sermon.speaker)}</td>
                     <td>${escapeHtml(formatDate(sermon.date))}</td>
@@ -141,17 +206,11 @@
         function populateTable() {
             loadFromFirebase(COLLECTION, (data) => {
                 allSermons = data;
-                renderTable(data);
+                applyFilters();
             });
         }
 
-        document.getElementById('sermon-search').addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            const filtered = allSermons.filter(s =>
-                [s.title, s.speaker, s.notes].some(v => (v || '').toLowerCase().includes(term))
-            );
-            renderTable(filtered);
-        });
+        document.getElementById('sermon-search').addEventListener('input', applyFilters);
         
         window.deleteSermon = function(id) {
             if (confirm('Are you sure you want to delete this sermon?')) {
@@ -174,6 +233,7 @@
                 return;
             }
             editingSermonId = id;
+            document.getElementById('sermon-folder').value = normalizeSermonFolder(sermon.folder);
             document.getElementById('sermon-title').value = sermon.title || '';
             document.getElementById('sermon-speaker').value = sermon.speaker || '';
             document.getElementById('sermon-date').value = sermon.date || '';
@@ -187,6 +247,7 @@
         sermonForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const sermonData = {
+                folder: normalizeSermonFolder(document.getElementById('sermon-folder').value),
                 title: document.getElementById('sermon-title').value,
                 speaker: document.getElementById('sermon-speaker').value,
                 date: document.getElementById('sermon-date').value,
@@ -224,6 +285,7 @@
                     return;
                 }
                 const records = rows.map(row => ({
+                    folder: normalizeSermonFolder(getRowField(row, ['folder', 'category', 'type'])),
                     title:   getRowField(row, ['title', 'sermon title', 'sermon name', 'name']),
                     speaker: getRowField(row, ['speaker', 'preacher', 'pastor', 'minister']),
                     date:    getRowField(row, ['date', 'sermon date']),
